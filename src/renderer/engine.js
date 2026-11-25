@@ -218,7 +218,8 @@ const Engine = (() => {
   }
 
   // ---------- frames ----------
-  function composeStrip(frames, startNum) {
+  /** label: the edge-print film name; defaults to the house brand. */
+  function composeStrip(frames, startNum, label = 'PHOTOSET 400') {
     const H = Math.max(...frames.map((f) => f.height));
     const ws = frames.map((f) => (f.width * H) / f.height);
     const band = H * 0.23, gap = H * 0.07, pad = gap;
@@ -262,7 +263,7 @@ const Engine = (() => {
       x.fillText(String(n), px + ws[i] / 2, TH - band * 0.13);
       if (i < frames.length - 1) x.fillText('▸' + n + 'A', px + ws[i] + gap / 2, TH - band * 0.13);
       x.textAlign = 'left';
-      x.fillText(i % 2 ? '◂ SAFETY FILM' : 'PHOTOSET 400', px + ws[i] * 0.12, band * 0.13);
+      x.fillText(i % 2 ? '◂ SAFETY FILM' : label, px + ws[i] * 0.12, band * 0.13);
       px += ws[i] + gap;
     });
     return c;
@@ -346,8 +347,8 @@ const Engine = (() => {
     return c;
   }
 
-  function applyFrame(c, s, index) {
-    if (s.frame === '35mm') return composeStrip([c], index + 1);
+  function applyFrame(c, s, index, label) {
+    if (s.frame === '35mm') return composeStrip([c], index + 1, label);
     if (s.frame === 'super8') return frameSuper8(c);
     if (s.frame === 'instant') return frameInstant(c);
     return c;

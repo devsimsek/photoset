@@ -512,6 +512,24 @@
     }
   }
 
+  // ---------- edge print ----------
+  // Custom films print their name on the strip edge; built-in stocks keep
+  // PHOTOSET 400. lastStripLabel records what the latest render used.
+  const edgeLabel = () => {
+    const st = stockById(state.stock);
+    return st && films.includes(st) ? String(st.name).replace(/\n/g, ' ') : undefined;
+  };
+  function composeStripLabeled(frames, startNum) {
+    const label = edgeLabel();
+    state.lastStripLabel = label ?? null;
+    return Engine.composeStrip(frames, startNum, label);
+  }
+  function applyFrameLabeled(c, s, index) {
+    const label = s.frame === '35mm' ? edgeLabel() : undefined;
+    state.lastStripLabel = label ?? null;
+    return Engine.applyFrame(c, s, index, label);
+  }
+
   // ---------- selection & preview ----------
   function select(i) {
     if (!state.photos.length) return;
@@ -574,10 +592,10 @@
       for (const q of group) {
         frames.push(Engine.renderLook(await getSource(q), q, s, STRIP_PREV_EDGE, stripAspect(s)));
       }
-      out = Engine.composeStrip(frames, g >= 0 ? g * s.stripN + 1 : 1);
+      out = composeStripLabeled(frames, g >= 0 ? g * s.stripN + 1 : 1);
     } else {
       const src = await getSource(p);
-      out = Engine.applyFrame(Engine.renderLook(src, p, s, PREV_EDGE), s, state.sel);
+      out = applyFrameLabeled(Engine.renderLook(src, p, s, PREV_EDGE), s, state.sel);
     }
     showCanvas(out);
     state.lastOut = out;
@@ -594,7 +612,7 @@
   // ---------- full-resolution renders ----------
   async function renderSingleFull(p, s) {
     const bmp = await decode(p);
-    try { return Engine.applyFrame(Engine.renderLook(bmp, p, s, s.maxEdge || Infinity), s, p.idx); }
+    try { return applyFrameLabeled(Engine.renderLook(bmp, p, s, s.maxEdge || Infinity), s, p.idx); }
     finally { bmp.close(); }
   }
   async function renderStripFull(gi, s) {
@@ -605,7 +623,7 @@
       const bmp = await decode(q);
       try { frames.push(Engine.renderLook(bmp, q, s, edge, stripAspect(s))); } finally { bmp.close(); }
     }
-    return { canvas: Engine.composeStrip(frames, gi * s.stripN + 1), group };
+    return { canvas: composeStripLabeled(frames, gi * s.stripN + 1), group };
   }
 
   // ---------- size estimate ----------

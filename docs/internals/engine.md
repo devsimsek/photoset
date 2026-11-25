@@ -43,7 +43,9 @@ header, no library), falling back to the file's modification time.
 
 - **35mm strip** (`composeStrip`): a dark band top and bottom with sprocket
   holes, the frames in a row, frame numbers and `▸nA` edge print between them,
-  and alternating `PHOTOSET 400` / `SAFETY FILM` edge markings. In strip mode
+  and alternating film name / `SAFETY FILM` edge markings (built-in stocks and
+  unlabeled calls print `PHOTOSET 400`; a custom film passes its name in).
+  In strip mode
   several shots compose into one image; per-shot framing wraps a single shot.
 - **Super 8** (`frameSuper8`): a rounded gate with a dark border, neighbouring
   frames peeking in above and below, a perforation on the left and vertical
