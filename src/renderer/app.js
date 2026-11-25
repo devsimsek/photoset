@@ -879,6 +879,32 @@
   // correct under any deploy base path (GitHub Pages serves this app at /photoset/).
   // Failures (blocked worker, unsupported browser) must never break the app.
   if (isWeb && window.isSecureContext && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* offline helpers are optional */ });
+    // The page reloads ONLY after the user clicked the update toast; a
+    // controllerchange from a first activation (or a background update) never
+    // triggers a reload on its own.
+    let userClickedReload = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (userClickedReload) window.location.reload();
+    });
+    const offerUpdate = (worker) => {
+      toast('New version ready', 'RELOAD', () => {
+        userClickedReload = true;
+        worker.postMessage({ type: 'SKIP_WAITING' });
+      });
+    };
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      // A worker already waiting when the page loads (user ignored the toast
+      // earlier) gets the toast again.
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          // A worker can only be "installed and waiting" while an older worker
+          // is still in control, which is exactly the toast case.
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(worker);
+        });
+      });
+    }).catch(() => { /* offline helpers are optional */ });
   }
 })();

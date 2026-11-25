@@ -110,3 +110,12 @@ darkroom still boots from the cache, right down to the last film stock.
   through.
 - Your photos and develops never go through the service worker at all: loading
   and saving happen entirely in the page.
+
+## Updates: the "New version ready" toast
+
+When a newer version of the app has been deployed and downloaded in the
+background, a toast appears: **New version ready** with a RELOAD button.
+Nothing happens until you click it: the page never reloads on its own, and
+ignoring the toast is fine. Clicking RELOAD swaps in the new version and
+reloads the page. The toast respects your reduced-motion setting and is fully
+keyboard reachable.
