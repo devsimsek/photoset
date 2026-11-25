@@ -20,6 +20,29 @@ and `.png` results all follow the same rule.
 The full algorithm, with both the batch-level and on-disk checks, is documented in
 [internals/naming](internals/naming.md).
 
+## RAW decodes on the device
+
+RAW files (DNG, CR3, ARW) develop through a WebAssembly decoder that ships with
+the app, never through a remote service.
+
+- **No pixels, no files, no round trip.** Decoding happens on the device. A RAW
+  file is never uploaded, no decode API is called, and the decoder itself makes
+  no network calls. The decoder's wasm and glue files are self-hosted from the
+  app's own deployment; no CDN is contacted at runtime.
+- **First paint never pays.** The decoder is a lazy asset outside the 150 KB
+  app ratchet (ADR 0004): it downloads only when a RAW file is first decoded,
+  and the service worker caches it on first fetch so later decodes work
+  offline. It is never precached at install time.
+- **Same pipeline, no side path.** A RAW shot decodes to RGBA pixels and
+  develops through the engine exactly like a JPG; no file-format branch exists
+  in the develop path. RAW tiles may show the camera's embedded preview while
+  the real decode runs, but a develop output is always the decoded sensor
+  image.
+- **Decode on demand, then drop.** The app never decodes a whole roll of RAW
+  files up front. One full decode lives in memory per view; develops decode
+  each shot, render it and release it. Changing rolls aborts every in-flight
+  decode.
+
 ## Rolls persist as metadata, never as pixels
 
 The darkroom may remember what a roll was: shot file names, sizes, modification

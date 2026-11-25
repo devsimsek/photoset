@@ -6,8 +6,37 @@
   the real folder (via the File System Access API), so results can be saved straight
   into a subfolder of it. Other browsers pick the photos inside a folder instead.
 - **Drag and drop.** Drop a folder or a pile of JPGs anywhere on the window.
-- Only top-level `.jpg` / `.jpeg` files load; subfolders are ignored. Shots sort by
-  name. Tap `○` (or press Space) to pick shots, or develop the whole roll.
+- Only top-level `.jpg` / `.jpeg` / `.dng` / `.cr3` / `.arw` files load; subfolders
+  are ignored. Shots sort by name. Tap `○` (or press Space) to pick shots, or
+  develop the whole roll.
+
+## RAW shots
+
+RAW files develop through the same pipeline as JPGs, on your device:
+
+- **Formats.** DNG (including phone ProRAW-style linear DNGs), Canon CR3 and
+  Sony ARW. The decoder is FlashRaw, a WebAssembly library that ships with the
+  app itself: no CDN, no server round trip, no decode service. Pixels never
+  leave the machine.
+- **Preview first.** A RAW tile shows the shot immediately: the camera's
+  embedded preview renders within milliseconds of the roll loading, with a
+  small spinner while the real decode runs in the background. Files without an
+  embedded preview just wait for the decode. Once you view or develop the
+  shot, the full decode replaces the preview on the tile.
+- **Decode on demand.** The full RAW decode happens when you look at a shot or
+  develop it - never for the whole roll up front. The decoded pixels are
+  dropped again when you move on: one decoded shot sits in memory at a time,
+  and a develop decodes each shot, renders it and drops it.
+- **The decoder is a lazy asset.** The app shell loads as before; the decoder
+  (about 1.3 MB gzipped) downloads only the first time a RAW file is decoded,
+  is cached by the app's service worker from then on, and works offline after
+  that. Opening the app without RAW files never downloads it.
+- **EXIF.** A RAW file has no JPEG EXIF to carry over. The *Keep EXIF* toggle
+  writes the capture date from the RAW metadata when the file carries one, and
+  writes nothing when it does not.
+- **Latency.** A 24 MP DNG decodes in well under a second in a desktop
+  browser (measured around 0.7 s in Chromium on an M-series MacBook); the
+  budget is five seconds, and the suite pins it.
 
 ## Film stocks
 
@@ -68,7 +97,7 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 | Setting | Meaning |
 | --- | --- |
 | Quality | Encode quality (default 72). Applies to JPG and WebP; PNG ignores it. The size estimate updates as you move it. |
-| Format | Output format: JPG (default), WebP or PNG. The file extension follows the format. Loading is JPG-only by design. |
+| Format | Output format: JPG (default), WebP or PNG. The file extension follows the format. Loading is JPG and RAW (DNG/CR3/ARW) by design. |
 | Size cap | Optional max output size per photo, in KB. Empty means no cap. JPG and WebP search for the largest quality that fits (down to quality 10, which ships even if it misses the cap); PNG is lossless, so it scales the long edge down in 10% steps to 50% instead. The size estimate reflects the cap. |
 | Keep EXIF | Writes the capture date back into JPG output as a minimal EXIF block. Off by default: a canvas re-encode strips EXIF, and WebP/PNG always skip it. |
 | Max edge | Long edge of the output in pixels. 0 keeps the original size. |

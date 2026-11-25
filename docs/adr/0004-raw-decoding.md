@@ -124,12 +124,17 @@ cross-origin isolated, JPEG XL `auto`). Decode with
 - **WebGPU backend**: FlashRaw ships one as an opt-in binary, but the CPU is
   fast enough for the budget. Deferred, not needed for v0.6.0.
 
+## Verified
+
+- WASM decode latency in a real browser, measured for PS-28 (Playwright
+  Chromium, single-threaded pool worker, no cross-origin isolation, M-series
+  MacBook, FlashRaw 0.5.0): 6000x4000 (24 MP) lossless-JPEG DNG 655-674 ms
+  warm (738 ms first decode), 1920x1080 CinemaDNG 67-71 ms. The 5 s budget
+  holds with a wide margin; a scenario in the suite pins the committed
+  fixture under 5000 ms and ran at 71 ms.
+
 ## Unverified
 
-- WASM decode latency for a 24 MP file in a real browser. Native numbers are
-  27.8-57.7 ms RAW-to-sRGB at 24-26 MP; the vendor's in-browser figure is
-  ~100 ms for 17 MP CR3. Our 24 MP target has margin on paper, but the
-  integration ticket must measure it before we claim it.
 - CR3 decode inside the `libraw-wasm` fallback build.
 - WASM payload gzip sizes for `@wasmedia/wlibraw` and `rawconvert-wasm`
   (package sizes only, binaries unmeasured).

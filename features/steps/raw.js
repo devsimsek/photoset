@@ -210,6 +210,19 @@ Then('the in-flight RAW decode was aborted', async ({ page }) => {
   if (!stats.aborted) throw new Error(`no decode was aborted: ${JSON.stringify(stats)}`);
 });
 
+// ---------- latency budget (PS-28) ----------
+
+Then('the decode took under {int}ms', async ({ page }, budget) => {
+  const ms = await page.evaluate(async (bytes) => {
+    if (!window.__rawFixture) window.__rawFixture = bytes;
+    const t0 = performance.now();
+    await window.api.decodeRaw(new Blob([window.__rawFixture]));
+    return Math.round(performance.now() - t0);
+  }, theFixture());
+  console.log(`RAW decode of the committed fixture: ${ms}ms (budget ${budget}ms)`);
+  if (ms >= budget) throw new Error(`the decode took ${ms}ms, budget is ${budget}ms`);
+});
+
 After(async () => {
   fixtureBytes = null;
 });

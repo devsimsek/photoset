@@ -47,3 +47,7 @@ Feature: RAW decoding
     And loads another roll with a JPG
     Then the in-flight RAW decode was aborted
 
+  Scenario: The committed fixture decodes well inside the latency budget
+    When the page decodes the RAW fixture
+    Then the decode took under 5000ms
+
