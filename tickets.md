@@ -27,9 +27,19 @@ paths and never commit outside them.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-12 | Film schema v1 + import/export (file, paste, download, copy) | Open | `app.js`, `index.html`, features/ | |
-| PS-13 | Film library: save, rename, delete, edit reopens, persistence | Open | `app.js`, features/ | |
-| PS-14 | Studio editor UI + film name on the strip edge print | Open | `app.js`, `engine.js`, `index.html`, `styles.css` | |
+| PS-12 | Film schema v1 + import/export (file, paste, download, copy) | Done | `app.js`, `engine.js`, `index.html`, features/ | Commit `9b64434`. Red proof: 5 failed pre-impl. 25/25 green. `validateFilm` refuses unknown schema, out-of-range sliders (SLIDERS table), non-hex colors, unknown aspect/frame/dateFmt. Docs: user-guide + internals/film-schema.md. |
+| PS-13 | Film library: save, rename, delete, edit reopens, persistence | Done | `app.js`, features/ | Commit `7809e9c`. Red proof: 7 failed pre-impl. 32/32 green. `darkroom.films` localStorage, re-validated on load; built-ins never mutate; byte-identical develop after reload (grain-0 film; engine grain uses Math.random, not the seeded RNG). |
+| PS-14 | Studio editor UI + film name on the strip edge print | Done | `app.js`, `engine.js`, `index.html`, `styles.css` | Commit `826a02c`. Red proof: 1 failed pre-impl. 35/35 green. `composeStrip` label param, default 'PHOTOSET 400' unchanged; custom films print their name. |
+| PS-15 | MkDocs theme: switch Material to shadcn | Done | `mkdocs.yml`, `.github/workflows/pages.yml` | Commits `39b25b8` (ci) + `4ffafe4` (theme). Strict shadcn build exit 0. Note: three Pages deploys failed mid-wave with 'Unrecognised theme name: material' (CI installed shadcn before mkdocs.yml switched); fixed forward by PS-15. |
+| PS-15a | AGENTS.md refresh for new commands/contracts | Open | `AGENTS.md` (on disk, no commit) | Owner policy: gitignored. Update at wave end. |
+
+## Wave 4, v0.3.0: PWA / offline
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-16 | Service worker: precache the shell, network-first updates | Open | new `sw.js`, `app.js` registration, `build-web.js` FILES, features/ | |
+| PS-17 | Update toast: skip-waiting + reload button, never forced | Open | `app.js`, `index.html`, `styles.css`, features/ | |
+| PS-18 | Installability: manifest audit, maskable icons, install UX | Open | `manifest.webmanifest`, `app.js`, features/ | |
 | PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
