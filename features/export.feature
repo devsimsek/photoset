@@ -25,3 +25,31 @@ Feature: Export formats
     When the photographer saves two developed files called "strip_001.webp"
     Then the first file is saved as "strip_001.webp"
     And the second file is saved as "strip_002.webp"
+
+  Scenario: A capped develop stays under the cap when a quality fits
+    Given the photographer loaded a busy roll with "lake.jpg"
+    And the photographer chose JPG output
+    And the photographer pushes quality to 100
+    And the photographer sets the cap to 8 KB
+    When the photographer develops the current shot
+    Then the result downloads within the cap
+
+  Scenario: An impossible cap still produces a file
+    Given the photographer loaded a busy roll with "lake.jpg"
+    And the photographer chose JPG output
+    And the photographer pushes quality to 100
+    And the photographer sets the cap to 1 KB
+    When the photographer develops the current shot
+    Then the result downloads anyway, larger than the cap
+
+  Scenario: The PNG cap path downscales instead of re-encoding
+    Given the photographer loaded a busy roll with "lake.jpg"
+    And the photographer chose PNG output
+    And the photographer sets the cap to 1 KB
+    When the photographer develops the current shot
+    Then the result is a PNG at half the long edge
+
+  Scenario: The output panel drives format and the cap
+    Given the photographer loaded a busy roll with "lake.jpg"
+    When the photographer picks WebP, quality 100 and a 20 KB cap in the output panel
+    Then the estimate shows a result within the cap

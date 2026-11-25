@@ -7,24 +7,38 @@ export function quoted(text) {
 }
 
 // Loads a roll through api.fromFiles and window.__darkroom.loadRoll, building
-// real JPEG bytes in the page. specs: [{ name, rel? }] where rel is the fake
-// webkitRelativePath a browser would report for folder picks.
+// real JPEG bytes in the page. specs: [{ name, rel?, busy? }] where rel is the
+// fake webkitRelativePath a browser would report for folder picks and busy
+// makes a larger, high-detail (incompressible) 256x192 shot.
 export async function loadRoll(page, specs, rollName) {
   await openApp(page);
   return page.evaluate(async ({ specs, rollName }) => {
-    const makeJpeg = async () => {
+    const makeJpeg = async (busy) => {
       const c = document.createElement('canvas');
-      c.width = 64;
-      c.height = 48;
+      c.width = busy ? 256 : 64;
+      c.height = busy ? 192 : 48;
       const x = c.getContext('2d');
-      x.fillStyle = '#b34d2e';
-      x.fillRect(0, 0, c.width, c.height);
+      if (busy) {
+        const id = x.createImageData(c.width, c.height);
+        let s = 0x9e3779b9 >>> 0;
+        for (let i = 0; i < id.data.length; i += 4) {
+          s = Math.imul(s ^ (s >>> 13), 0x5bd1e995) >>> 0;
+          id.data[i] = s & 255;
+          id.data[i + 1] = (s >>> 8) & 255;
+          id.data[i + 2] = (s >>> 16) & 255;
+          id.data[i + 3] = 255;
+        }
+        x.putImageData(id, 0, 0);
+      } else {
+        x.fillStyle = '#b34d2e';
+        x.fillRect(0, 0, c.width, c.height);
+      }
       const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
       return new Uint8Array(await blob.arrayBuffer());
     };
     const files = [];
     for (const s of specs) {
-      const f = new File([await makeJpeg()], s.name, { type: 'image/jpeg' });
+      const f = new File([await makeJpeg(!!s.busy)], s.name, { type: 'image/jpeg' });
       if (s.rel) Object.defineProperty(f, 'webkitRelativePath', { value: s.rel });
       files.push(f);
     }

@@ -16,7 +16,7 @@
     aspect: 'orig', frame: 'none', date: false,
   };
   const LOOK_KEYS = Object.keys(BASE);
-  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg' };
+  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg' };
   const EXT = { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/png': 'png' };
 
   const STOCKS = [
@@ -160,6 +160,7 @@
     document.querySelectorAll('[data-k]').forEach((input) => {
       const v = state.s[input.dataset.k];
       if (input.type === 'checkbox') input.checked = !!v;
+      else if (input.dataset.k === 'capKB') input.value = v ? String(v) : '';
       else input.value = String(v);
       paintControl(input);
     });
@@ -175,8 +176,10 @@
         const k = input.dataset.k;
         let v;
         if (input.type === 'checkbox') v = input.checked;
-        else if (input.type === 'range' || input.hasAttribute('data-num')) v = parseFloat(input.value);
-        else v = input.value;
+        else if (input.type === 'range' || input.hasAttribute('data-num')) {
+          const n = parseFloat(input.value);
+          v = isFinite(n) ? n : 0; // an emptied number field means off
+        } else v = input.value;
         state.s[k] = v;
         if (LOOK_KEYS.includes(k)) { state.custom = true; updateStockLabel(); }
         paintControl(input);
@@ -190,7 +193,7 @@
   function changed(k) {
     persist();
     if (k === 'folder') { updateDevNote(); return; }
-    if (k === 'quality' || k === 'maxEdge') { scheduleEstimate(); return; }
+    if (k === 'quality' || k === 'maxEdge' || k === 'capKB' || k === 'format') { scheduleEstimate(); return; }
     schedulePreview();
   }
   function updateDevNote() {
@@ -470,6 +473,40 @@
   }
 
   // ---------- size estimate ----------
+  // Encode under the optional size cap. JPG/WebP: binary-search the quality,
+  // floor 10, and ship the largest quality that fits (the quality-10 result if
+  // nothing does). PNG is lossless, so the cap is honored by downscaling the
+  // long edge in 10% steps to 50%, then shipping that.
+  async function encodeFits(canvas, s) {
+    const cap = (s.capKB || 0) * 1024;
+    if (!cap) return Engine.encode(canvas, s.quality, s.format);
+    if (s.format === 'image/png') {
+      let scale = 1;
+      for (;;) {
+        let c = canvas;
+        if (scale < 1) {
+          c = Engine.mk(canvas.width * scale, canvas.height * scale);
+          const x = c.getContext('2d');
+          x.imageSmoothingQuality = 'high';
+          x.drawImage(canvas, 0, 0, c.width, c.height);
+        }
+        const blob = await Engine.encode(c, s.quality, 'image/png');
+        if (c !== canvas) c.width = c.height = 0;
+        if (blob.size <= cap || scale <= 0.5) return blob;
+        scale = Math.max(0.5, Math.round((scale - 0.1) * 10) / 10);
+      }
+    }
+    let blob = await Engine.encode(canvas, s.quality, s.format);
+    if (blob.size <= cap) return blob;
+    let lo = 10, hi = Math.floor(s.quality), best = null;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const b = await Engine.encode(canvas, mid, s.format);
+      if (b.size <= cap) { best = b; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    return best || (await Engine.encode(canvas, 10, s.format));
+  }
+
   let estTimer = 0, estSeq = 0;
   function scheduleEstimate() {
     clearTimeout(estTimer);
@@ -492,7 +529,7 @@
         before = p.size;
       }
       if (seq !== estSeq) return;
-      const blob = await Engine.encode(canvas, s.quality, s.format);
+      const blob = await encodeFits(canvas, s);
       if (seq !== estSeq) return;
       const ratio = blob.size / before, total = sequence().reduce((a, q) => a + q.size, 0);
       $('#estOne').textContent = `${fmtBytes(before)} → ${fmtBytes(blob.size)}  ${pct(ratio)}`;
@@ -541,7 +578,7 @@
           canvas = await renderSingleFull(p, s);
           name = p.name.replace(/\.jpe?g$/i, '') + '.' + ext;
         }
-        const blob = await Engine.encode(canvas, s.quality, fmt);
+        const blob = await encodeFits(canvas, { ...s, format: fmt });
         canvas.width = canvas.height = 0;
         await api.writeFile(folder, name, await blob.arrayBuffer(), fmt);
         before += group.reduce((a, q) => a + q.size, 0);

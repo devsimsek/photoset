@@ -476,7 +476,7 @@ input[type='color']::-webkit-color-swatch { border: 0; border-radius: 2px; }
 
 .row { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
 .row > label:first-child { width: 82px; flex: none; }
-select, input[type='text'] {
+select, input[type='text'], input[type='number'] {
   flex: 1;
   min-width: 0;
   background: var(--panel2);
@@ -486,7 +486,10 @@ select, input[type='text'] {
   font-size: 12px;
   outline: none;
 }
-select:focus, input[type='text']:focus { border-color: var(--orange); }
+select:focus, input[type='text']:focus, input[type='number']:focus { border-color: var(--orange); }
+input[type='number'] { -moz-appearance: textfield; }
+input[type='number']::-webkit-inner-spin-button { display: none; }
+input[type='number']::placeholder { color: var(--faint); }
 select.narrow { flex: 0 0 64px; }
 select:disabled { opacity: 0.4; }
 .folder-input { flex: 1; display: flex; align-items: center; gap: 4px; font-family: var(--mono); color: var(--faint); }

@@ -117,9 +117,19 @@
       <section>
         <div class="sec-head">OUTPUT</div>
         <div class="slider">
-          <label>JPG quality</label>
+          <label>Quality</label>
           <input type="range" data-k="quality" min="30" max="100" step="1">
           <output></output>
+        </div>
+        <div class="row"><label>Format</label>
+          <select data-k="format" id="formatSel" title="Output format; loading stays JPG-only">
+            <option value="image/jpeg">JPG</option>
+            <option value="image/webp">WebP</option>
+            <option value="image/png">PNG</option>
+          </select>
+        </div>
+        <div class="row"><label>Size cap</label>
+          <input type="number" data-k="capKB" data-num min="1" step="10" placeholder="Off" title="Max output size per photo, in KB">
         </div>
         <div class="row"><label>Max size</label>
           <select data-k="maxEdge" data-num>
