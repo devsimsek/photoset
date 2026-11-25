@@ -37,9 +37,17 @@ paths and never commit outside them.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-16 | Service worker: precache the shell, network-first updates | Open | new `sw.js`, `app.js` registration, `build-web.js` FILES, features/ | |
-| PS-17 | Update toast: skip-waiting + reload button, never forced | Open | `app.js`, `index.html`, `styles.css`, features/ | |
-| PS-18 | Installability: manifest audit, maskable icons, install UX | Open | `manifest.webmanifest`, `app.js`, features/ | |
+| PS-16 | Service worker: precache the shell, network-first updates | Done | `sw.js` (new), `app.js`, `build-web.js`, features/ | Commit `3bc4220`. Red proof: offline loads failed pre-impl. 38/38 green. Cache `photoset-shell-<version>`, version injected by `build-web.js`; activate deletes old caches. |
+| PS-17 | Update toast: skip-waiting + reload button, never forced | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `404d6dd`. Red proof: toast timeout pre-impl. 41/41 green. Reload only on user click; version-swap simulation swaps the built sw.js VERSION mid-scenario. |
+| PS-18 | Installability: manifest audit, maskable icons, install UX | Done | `manifest.webmanifest`, `make-icon.js`, `app.js`, features/ | Commit `638a4a8`. Red proof: short_name and 512 maskable icon missing. 44/44 green. `icon-maskable.png` generated via `make-icon.js` (not hand-edited); apple-touch-icon added; latent `replace`-vs-`replaceAll` version-injection bug found and fixed in this commit. |
+
+## Wave 5, v0.4.0: local storage / rolls
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-19 | Persistence upgrade: films, settings, roll metadata (pixels never) | Open | `app.js`, `web-api.js`, features/ | |
+| PS-20 | Roll relink: re-pick folder auto-matches by name, numbering continues | Open | `app.js`, `web-api.js`, features/ | |
+| PS-21 | Non-matching files flagged in the photo list | Open | `app.js`, `index.html`, `styles.css`, features/ | |
 | PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
