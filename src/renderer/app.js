@@ -1010,6 +1010,70 @@
     } catch (err) { toast('Could not open: ' + err.message); }
   });
 
+  // ---------- paste a photo ----------
+  // The roll loads JPG photos by law. A pasted PNG is re-encoded to JPG
+  // through the canvas on the way in, so the pipeline only ever sees JPG;
+  // anything else is refused with a toast that names the format.
+  async function pastePhoto(file) {
+    if (state.busy || !file) return;
+    const mime = file.type || '';
+    if (mime !== 'image/jpeg' && mime !== 'image/png') {
+      const fmt = (mime.split('/')[1] || 'unknown').toUpperCase();
+      toast(`Pasted ${fmt} refused: the roll loads JPG photos only`);
+      return;
+    }
+    let blob = file;
+    if (mime === 'image/png') {
+      const bmp = await createImageBitmap(file);
+      const c = Engine.mk(bmp.width, bmp.height);
+      c.getContext('2d').drawImage(bmp, 0, 0);
+      bmp.close();
+      blob = await Engine.encode(c, 90);
+      c.width = c.height = 0;
+    }
+    const base = String(file.name || '').replace(/\.[^.]+$/, '').trim() || 'pasted';
+    let name = `${base}.jpg`;
+    const taken = new Set(state.photos.map((p) => p.name.toLowerCase()));
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} (${n}).jpg`;
+    const jpg = new File([blob], name, { type: 'image/jpeg' });
+    if (!state.roll) {
+      await loadRoll(api.fromPaste(jpg, name)); // starts a roll called "pasted"
+      toast(`Pasted ${name} starts a new roll`);
+      return;
+    }
+    // Insert in name order, renumbering what follows; picks and selection
+    // stay on the shots they pointed at.
+    const at = state.photos.findIndex((q) =>
+      q.name.localeCompare(name, undefined, { numeric: true, sensitivity: 'base' }) > 0);
+    const i = at < 0 ? state.photos.length : at;
+    state.photos.splice(i, 0, {
+      name, size: jpg.size, mtime: jpg.lastModified,
+      idx: 0, w: 0, h: 0, date: null, thumb: null, out: null,
+    });
+    state.photos.forEach((p, k) => { p.idx = k; });
+    state.picks = state.picks.map((n) => (n >= i ? n + 1 : n));
+    api.addRollFile(name, jpg);
+    persistRoll();
+    buildRollList();
+    updateHeader();
+    updateDevNote();
+    updatePickUI();
+    select(i);
+    genThumbs(state.rollToken);
+    toast(`Pasted ${name} added to “${state.roll.name}”`);
+  }
+
+  window.addEventListener('paste', (e) => {
+    if (e.target instanceof Element && e.target.closest('input, textarea, select')) return;
+    const files = [...(e.clipboardData ? e.clipboardData.items : [])]
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (!files.length) return; // plain-text pastes (film JSON) keep their default path
+    e.preventDefault();
+    (async () => { for (const f of files) await pastePhoto(f); })();
+  });
+
   // ---------- service worker (web builds only) ----------
   // Registered only in secure contexts with SW support, so file:// and plain
   // non-SW browsers skip this silently. The relative URL keeps the registration

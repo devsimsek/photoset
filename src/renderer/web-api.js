@@ -172,6 +172,19 @@
       })();
     },
 
+    // A pasted image joins the open roll (or starts one called "pasted").
+    fromPaste(file, name) {
+      if (!roll) roll = { name: 'pasted', dir: null, files: new Map() };
+      roll.files.set(name, file);
+      return { dir: roll.name, name: roll.name, files: [{ name, size: file.size, mtime: file.lastModified }] };
+    },
+
+    // Registers a pasted file's pixels under an open roll so readFile finds it.
+    addRollFile(name, file) {
+      if (!roll) roll = { name: 'pasted', dir: null, files: new Map() };
+      roll.files.set(name, file);
+    },
+
     async readFile(name) {
       const src = roll && roll.files.get(name);
       if (!src) throw new Error('Not in this roll: ' + name);
