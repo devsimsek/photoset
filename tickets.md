@@ -47,7 +47,16 @@ paths and never commit outside them.
 | --- | --- | --- | --- | --- |
 | PS-19 | Persistence upgrade: films, settings, roll metadata (pixels never) | Open | `app.js`, `web-api.js`, features/ | |
 | PS-20 | Roll relink: re-pick folder auto-matches by name, numbering continues | Open | `app.js`, `web-api.js`, features/ | |
-| PS-21 | Non-matching files flagged in the photo list | Open | `app.js`, `index.html`, `styles.css`, features/ | |
+| PS-21 | Non-matching files flagged in the photo list | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `d2d456d`. Red proof: 3 failed pre-impl. 54/54 final. Dimmed rows with MISSING badge; batch and strip grouping skip them; different folder replaces memory wholesale. |
+
+## Wave 6, v0.5.0: mobile + QOL
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-22 | 375px layout pass, touch targets at least 44px | Open | `styles.css`, `index.html`, features/ | |
+| PS-23 | Keyboard navigation between photos (arrows, j/k) | Open | `app.js`, `index.html`, features/ | |
+| PS-24 | Paste photo from clipboard | Open | `app.js`, `web-api.js`, features/ | |
+| PS-25 | Batch error reporting: per-file errors listed, not swallowed | Open | `app.js`, `index.html`, `styles.css`, features/ | |
 | PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
