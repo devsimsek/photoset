@@ -19,6 +19,21 @@ Golden Summer · Expired '89 · Party Flash · Tri-Mono B&W
 Touch any slider and the stock reads as *custom*. Double-click a slider label to reset
 that control to the stock's value.
 
+## Film studio
+
+A look can travel: export it as a film JSON file, import one back. Films follow
+[schema v1](internals/film-schema.md) - see that page for every field and range.
+
+- **Export film.** Downloads the current look as `<film-id>.json` and offers
+  *COPY JSON* to put the same text on the clipboard.
+- **Import film.** Opens a dialog where you paste a film JSON or choose a
+  `.json` file. Esc closes the dialog; nothing is applied until the film
+  validates.
+- **Validation.** Unknown schema versions, missing keys, out-of-range slider
+  values, non-hex split-tone colours and unknown aspect, frame or date-format
+  values are refused with a message; the current look stays untouched. A valid
+  film becomes the active look immediately.
+
 ## The sliders
 
 | Slider | What it does |

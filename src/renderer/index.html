@@ -71,6 +71,10 @@
       <section>
         <div class="sec-head">FILM STOCK <span class="stock-name" id="stockName"></span></div>
         <div class="stocks" id="stocks"></div>
+        <div class="film-tools">
+          <button class="link" id="exportFilmBtn" title="Download this look as a film JSON file">export film</button>
+          <button class="link" id="importFilmBtn" title="Import a film from a file or pasted JSON">import film</button>
+        </div>
       </section>
 
       <section>
@@ -175,6 +179,22 @@
 </main>
 
 <div class="toast" id="toast"><span id="toastMsg"></span><button class="link" id="toastAction" hidden></button></div>
+
+<dialog id="filmDlg" aria-labelledby="filmDlgTitle">
+  <h2 id="filmDlgTitle">FILM</h2>
+  <div id="filmSaveFields" hidden>
+    <label class="dlg-field">Name <input id="filmName" type="text" maxlength="40" spellcheck="false" autocomplete="off"></label>
+    <label class="dlg-field">ISO <input id="filmIso" type="text" maxlength="12" spellcheck="false" autocomplete="off"></label>
+  </div>
+  <div id="filmImportFields">
+    <label class="dlg-field">Film JSON <textarea id="filmJson" rows="9" spellcheck="false" placeholder="Paste a film JSON here"></textarea></label>
+    <label class="dlg-field">or choose a file <input id="filmFile" type="file" accept=".json,application/json"></label>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn ghost" id="filmCancel" type="button">CANCEL</button>
+    <button class="btn primary" id="filmOk" type="button">OK</button>
+  </div>
+</dialog>
 
 <script src="engine.js"></script>
 <script src="exif.js"></script>

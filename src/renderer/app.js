@@ -46,6 +46,17 @@
     ['softness', 'Softness', 0, 100, 1], ['leak', 'Light leak', 0, 100, 1], ['flicker', 'Flicker', 0, 100, 1],
   ];
 
+  // ---------- films (schema v1) ----------
+  const LOOK_FIELDS = [
+    'exposure', 'contrast', 'saturation', 'warmth', 'tint', 'fade', 'split',
+    'shadow', 'highlight', 'grain', 'grainSize', 'vignette', 'softness',
+    'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt',
+  ];
+  const FRAMES = ['none', '35mm', 'super8', 'instant'];
+  const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const films = []; // the saved-film library (PS-13 persists it)
+
   // ---------- state ----------
   const state = {
     roll: null, photos: [], sel: -1,
@@ -63,6 +74,61 @@
   } catch { /* first run */ }
   function persist() {
     try { localStorage.setItem('darkroom.settings', JSON.stringify({ s: state.s, stock: state.stock, custom: state.custom })); } catch { /* ignore */ }
+  }
+
+  // ---------- films: export, validation, import ----------
+  const singleLine = (s) => String(s).replace(/\s+/g, ' ').trim();
+  const slugify = (s) => singleLine(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'film';
+  const stockById = (id) => STOCKS.find((x) => x.id === id) || films.find((f) => f.id === id) || null;
+  function uniqueId(base, taken) {
+    let id = base, n = 2;
+    while (taken.some((x) => x.id === id)) id = `${base}-${n++}`;
+    return id;
+  }
+  const lookSnapshot = () => { const look = {}; for (const k of LOOK_FIELDS) look[k] = state.s[k]; return look; };
+  function exportFilm() {
+    const st = stockById(state.stock);
+    const name = st ? singleLine(st.name) : 'Custom film';
+    let base = slugify(name);
+    if (state.custom && STOCKS.some((x) => x.id === base)) base += '-custom'; // never a built-in's id
+    return { schema: 1, id: uniqueId(base, films), name, iso: st ? String(st.iso) : 'CUSTOM', look: lookSnapshot() };
+  }
+  function applyFilm(film) {
+    Object.assign(state.s, BASE, film.look);
+    state.stock = film.id;
+    state.custom = true;
+    syncControls();
+    changed('look');
+  }
+  // Returns an error message, or null when the film is a valid schema v1 film.
+  function validateFilm(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'this is not a film JSON';
+    if (raw.schema !== 1) return `unknown film schema version ${JSON.stringify(raw.schema)} (expected 1)`;
+    for (const k of ['id', 'name']) if (typeof raw[k] !== 'string' || !raw[k].trim()) return `film ${k} is missing`;
+    if (typeof raw.iso !== 'string') return 'film iso must be text';
+    const look = raw.look;
+    if (!look || typeof look !== 'object' || Array.isArray(look)) return 'film look is missing';
+    for (const k of Object.keys(look)) if (!LOOK_FIELDS.includes(k)) return `unknown look key "${k}"`;
+    for (const k of LOOK_FIELDS) if (!(k in look)) return `look is missing "${k}"`;
+    for (const [k, , min, max] of SLIDERS) {
+      const v = look[k];
+      if (typeof v !== 'number' || !isFinite(v)) return `${k} must be a number`;
+      if (v < min || v > max) return `${k} ${v} is out of range (${min} to ${max})`;
+    }
+    for (const k of ['shadow', 'highlight']) if (!HEX.test(look[k])) return `${k} must be a #rrggbb colour`;
+    if (!(look.aspect in Engine.ASPECTS)) return `unknown aspect "${look.aspect}"`;
+    if (!FRAMES.includes(look.frame)) return `unknown frame "${look.frame}"`;
+    if (typeof look.date !== 'boolean') return 'date must be on or off';
+    if (!DATE_FMTS.includes(look.dateFmt)) return `unknown date format "${look.dateFmt}"`;
+    return null;
+  }
+  function importFilm(text) {
+    let raw;
+    try { raw = JSON.parse(text); } catch { return { error: 'this is not JSON' }; }
+    const err = validateFilm(raw);
+    if (err) return { error: err };
+    applyFilm(raw);
+    return { film: raw };
   }
 
   // ---------- helpers ----------
@@ -125,7 +191,7 @@
       const input = Object.assign(document.createElement('input'), { type: 'range', min, max, step });
       input.dataset.k = k;
       lab.ondblclick = () => {
-        const st = STOCKS.find((x) => x.id === state.stock);
+        const st = stockById(state.stock);
         input.value = (st.look[k] ?? BASE[k]);
         input.dispatchEvent(new Event('input'));
       };
@@ -142,7 +208,7 @@
     changed('look');
   }
   function updateStockLabel() {
-    const st = STOCKS.find((x) => x.id === state.stock);
+    const st = stockById(state.stock) || { name: '?' };
     $('#stockName').textContent = st.name.replace('\n', ' ') + (state.custom ? ' · custom' : '');
     document.querySelectorAll('.stock').forEach((b) => b.classList.toggle('active', b.dataset.id === state.stock));
   }
@@ -619,7 +685,7 @@
   function hideOriginal() { if (state.lastOut) showCanvas(state.lastOut); }
 
   // ---------- wiring ----------
-  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, state }; // debugging / smoke tests
+  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, state, exportFilm, importFilm }; // debugging / smoke tests
   buildStocks();
   buildSliders();
   bindControls();
@@ -633,6 +699,44 @@
   $('#saveOneBtn').onclick = () => develop(true);
   $('#pickAll').onclick = () => setPicks(state.photos.map((p) => p.idx));
   $('#pickNone').onclick = () => setPicks([]);
+
+  // ---------- film studio ----------
+  let filmDlgMode = 'save';
+  function openFilmDlg(mode) {
+    filmDlgMode = mode;
+    $('#filmDlgTitle').textContent = mode === 'import' ? 'IMPORT FILM' : 'SAVE FILM';
+    $('#filmSaveFields').hidden = mode === 'import';
+    $('#filmImportFields').hidden = mode !== 'import';
+    $('#filmJson').value = '';
+    $('#filmName').value = '';
+    $('#filmIso').value = '';
+    $('#filmOk').textContent = mode === 'import' ? 'IMPORT' : 'SAVE';
+    $('#filmDlg').showModal();
+    (mode === 'import' ? $('#filmJson') : $('#filmName')).focus();
+  }
+  function onFilmOk() {
+    if (filmDlgMode !== 'import') return;
+    const r = importFilm($('#filmJson').value);
+    if (r.error) { toast('Refused: ' + r.error); return; }
+    $('#filmDlg').close();
+    toast(`Film “${singleLine(r.film.name)}” applied`);
+  }
+  $('#exportFilmBtn').onclick = async () => {
+    const film = exportFilm();
+    const json = JSON.stringify(film, null, 2);
+    try { await api.writeFile('films', `${film.id}.json`, json, 'application/json'); } catch (e) { toast('Could not export film: ' + e.message); return; }
+    toast(`Film exported as ${film.id}.json`, 'COPY JSON', async () => {
+      try { await navigator.clipboard.writeText(json); toast('Film JSON copied to clipboard'); }
+      catch { toast('Clipboard refused; use the downloaded file'); }
+    });
+  };
+  $('#importFilmBtn').onclick = () => openFilmDlg('import');
+  $('#filmCancel').onclick = () => $('#filmDlg').close();
+  $('#filmOk').onclick = onFilmOk;
+  $('#filmFile').onchange = async () => {
+    const f = $('#filmFile').files[0];
+    if (f) $('#filmJson').value = await f.text();
+  };
   const cmp = $('#compareBtn');
   cmp.addEventListener('pointerdown', showOriginal);
   for (const ev of ['pointerup', 'pointerleave']) cmp.addEventListener(ev, hideOriginal);

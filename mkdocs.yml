@@ -33,6 +33,7 @@ nav:
       - Architecture: internals/architecture.md
       - The Engine: internals/engine.md
       - Naming: internals/naming.md
+      - Film Schema: internals/film-schema.md
   - ADRs:
       - ADR 0001 - Web-only scope: adr/0001-web-only-scope.md
       - ADR 0002 - Gherkin BDD contract: adr/0002-gherkin-bdd-contract.md

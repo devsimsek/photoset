@@ -576,6 +576,31 @@ select:disabled { opacity: 0.4; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .toast .link { color: #b14b08; font-weight: 700; font-size: 12px; }
 
+/* ---------- film studio ---------- */
+.film-tools { display: flex; gap: 14px; margin-top: 10px; }
+#filmDlg {
+  background: #1d1812;
+  color: var(--cream);
+  border: 1px solid #3a2f22;
+  border-radius: 10px;
+  padding: 16px 18px;
+  width: min(380px, 92vw);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+#filmDlg::backdrop { background: rgba(8, 6, 4, 0.6); }
+#filmDlg h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: 0.2em; color: var(--amber); }
+.dlg-field { display: block; margin: 8px 0; font-size: 12px; color: var(--dim); }
+.dlg-field input[type='text'], .dlg-field textarea, .dlg-field input[type='file'] { width: 100%; margin-top: 4px; }
+.dlg-field textarea {
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--cream);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
 /* ---------- web build ---------- */
 .web-only { display: none; }
 .web .web-only { display: block; }

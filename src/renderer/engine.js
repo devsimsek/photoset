@@ -398,5 +398,5 @@ const Engine = (() => {
     return null;
   }
 
-  return { renderLook, applyFrame, composeStrip, encode, exifDate, mk };
+  return { renderLook, applyFrame, composeStrip, encode, exifDate, mk, ASPECTS };
 })();

@@ -4,4 +4,5 @@ export const results = {
   downloads: [], // Playwright Download objects from the latest develop run
   names: [],     // names returned by api.writeFile in the naming scenarios
   capKB: 0,      // the size cap the current scenario set, in KB
+  film: {},      // film studio handoff: export download, parsed JSON, stashed look
 };
