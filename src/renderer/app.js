@@ -979,10 +979,18 @@
   for (const ev of ['pointerup', 'pointerleave']) cmp.addEventListener(ev, hideOriginal);
 
   window.addEventListener('keydown', (e) => {
-    if (e.target.matches('input[type=text], select')) return;
-    if (e.key === 'ArrowLeft') { select(state.sel - 1); e.preventDefault(); }
-    if (e.key === 'ArrowRight') { select(state.sel + 1); e.preventDefault(); }
-    if (e.key === ' ' && !e.target.matches('button, input')) { togglePick(state.sel); e.preventDefault(); }
+    // Text entry never navigates: film names, the film JSON paste area, the
+    // size cap and the folder name are typing fields, not shortcuts.
+    if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return;
+    // A modal dialog owns the keyboard while it is open.
+    if (document.querySelector('dialog[open]')) {
+      if (e.key === 'Escape') $('#filmDlg').close();
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'k') { select(state.sel - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'j') { select(state.sel + 1); e.preventDefault(); }
+    else if (e.key === ' ' && !e.target.matches('button')) { togglePick(state.sel); e.preventDefault(); }
+    else if (e.key === 'Enter' && !e.target.matches('button')) { develop(true); e.preventDefault(); }
   });
 
   let dragDepth = 0;
