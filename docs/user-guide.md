@@ -88,6 +88,25 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 - DEVELOP runs the whole selection; progress shows per shot with a before → after
   size total.
 
+## Your rolls, remembered
+
+When you load a roll, the darkroom remembers what it was: the roll name, the shot
+file names, their sizes and modification times, capture dates it has already read,
+your picks and how far strip numbering got. This memory lives in your browser's
+local storage, stays within a few kilobytes for a whole roll, and holds not a
+single pixel: photos are image data, and image data is never written to storage.
+
+Reload the page (or come back tomorrow) and the roll is still there, remembered.
+The contact sheet lists the shots greyed out, with a note that the pixels are
+gone and a RE-PICK THE FOLDER button. Nothing is faked: the remembered shots have
+no thumbnails and cannot be developed until the folder is back.
+
+Re-pick the same folder and the roll restores: matching happens by exact file
+name, your picks come back, and strip numbering continues where the roll left
+off (see below). Files the folder no longer contains stay listed and flagged,
+never silently dropped. Loading a completely different folder replaces the
+remembered roll instead of merging the two.
+
 ## Browser support
 
 | Browser | Loading photos | Saving results |

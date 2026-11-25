@@ -73,6 +73,8 @@
   const state = {
     roll: null, photos: [], sel: -1,
     picks: [], // photo indices in the order they were picked; empty = use the whole roll
+    stripHigh: 0, // highest strip_NNN handed to output; remembered across reloads
+    perPhoto: {}, // name -> per-photo look overrides (reserved; nothing edits them yet)
     s: { ...BASE, ...OUTPUT_DEFAULTS },
     stock: 'natural', custom: false, busy: false, lastOut: null, rollToken: 0,
   };
@@ -91,6 +93,66 @@
   }
   function persist() {
     try { localStorage.setItem('darkroom.settings', JSON.stringify({ s: state.s, stock: state.stock, custom: state.custom })); } catch { /* ignore */ }
+  }
+
+  // ---------- roll memory (metadata only, pixels never) ----------
+  // darkroom.roll remembers what a roll was: shot names, sizes, mtimes, EXIF
+  // dates already parsed, picks (by file name) and the strip high-water mark.
+  // No image bytes, no data URLs, no base64: the entry stays a few bytes a shot.
+  const ROLL_KEY = 'darkroom.roll';
+
+  function rememberedMeta() {
+    try {
+      const meta = JSON.parse(localStorage.getItem(ROLL_KEY) || 'null');
+      if (!meta || meta.schema !== 1 || !Array.isArray(meta.photos)) return null;
+      return meta;
+    } catch { return null; }
+  }
+
+  function rollSnapshot() {
+    if (!state.roll) return null;
+    return {
+      schema: 1,
+      name: state.roll.name,
+      savedAt: Date.now(),
+      photos: state.photos.map((p) => ({
+        name: p.name, size: p.size, mtime: p.mtime,
+        ...(p.date ? { date: p.date.toISOString() } : {}),
+        ...(p.missing ? { missing: true } : {}),
+      })),
+      picks: state.picks.map((i) => (state.photos[i] || {}).name).filter(Boolean),
+      perPhoto: state.perPhoto || {},
+      stripHigh: state.stripHigh || 0,
+    };
+  }
+
+  function persistRoll() {
+    if (state.photos.some((p) => p.remembered)) return; // a remembered context stores nothing new
+    try {
+      const snap = rollSnapshot();
+      if (snap) localStorage.setItem(ROLL_KEY, JSON.stringify(snap));
+    } catch { /* storage blocked or full: memory is best effort */ }
+  }
+
+  // Boot with a remembered roll: names come back, pixels do not. The contact
+  // sheet lists the shots greyed out until the folder is re-picked.
+  function showRememberedRoll() {
+    const meta = rememberedMeta();
+    if (!meta || !meta.photos.length) return;
+    state.roll = { name: meta.name || 'remembered roll', dir: null, files: [] };
+    state.photos = meta.photos.map((m, i) => ({
+      name: m.name, size: m.size || 0, mtime: m.mtime || 0,
+      date: m.date ? new Date(m.date) : null,
+      idx: i, w: 0, h: 0, thumb: null, out: null, remembered: true,
+    }));
+    state.stripHigh = meta.stripHigh || 0;
+    state.perPhoto = meta.perPhoto || {};
+    buildRollList();
+    updateHeader();
+    updateDevNote();
+    $('#empty').hidden = true;
+    $('#rememberBanner').hidden = false;
+    updatePickUI();
   }
 
   // ---------- films: export, validation, import, library ----------
@@ -355,7 +417,11 @@
     state.roll = roll;
     state.photos = roll.files.map((f, i) => ({ ...f, idx: i, w: 0, h: 0, date: null, thumb: null, out: null }));
     state.picks = [];
+    state.stripHigh = 0;
+    state.perPhoto = {};
     state.lastOut = null;
+    $('#rememberBanner').hidden = true;
+    persistRoll();
     buildRollList();
     updateHeader();
     updateDevNote();
@@ -368,14 +434,14 @@
 
   // ---------- picks ----------
   function togglePick(i) {
-    if (state.busy || !state.photos[i]) return;
+    if (state.busy || !state.photos[i] || state.photos[i].remembered) return;
     const k = state.picks.indexOf(i);
     if (k >= 0) state.picks.splice(k, 1);
     else state.picks.push(i);
     refreshPicks();
   }
   function setPicks(list) {
-    if (state.busy || !state.photos.length) return;
+    if (state.busy || !state.photos.length || state.photos.some((p) => p.remembered)) return;
     state.picks = list;
     refreshPicks();
   }
@@ -383,6 +449,7 @@
     refreshItems();
     updatePickUI();
     updateFrameInfo();
+    persistRoll();
     schedulePreview();
   }
   const refreshItems = () => { for (const p of state.photos) updateItem(p); };
@@ -392,6 +459,11 @@
     if (!state.busy) $('#developBtn').textContent = n ? `DEVELOP ${n} PICKED ▸` : 'DEVELOP ROLL ▸';
     const hint = $('#pickHint');
     if (!total) { hint.textContent = 'Tap ○ to pick shots'; return; }
+    if (state.photos.some((p) => p.remembered)) {
+      $('#developBtn').textContent = 'RE-PICK THE FOLDER TO DEVELOP';
+      hint.replaceChildren('Roll remembered · re-pick the folder to restore');
+      return;
+    }
     const count = n || total, strips = Math.ceil(count / s.stripN);
     const lead = el('b', null, n ? `${n} picked` : `All ${total} shots`);
     if (s.mode === 'strip') {
@@ -402,9 +474,15 @@
   }
 
   function updateHeader() {
+    const remembered = state.photos.some((p) => p.remembered);
     const lab = $('#rollLabel');
-    lab.replaceChildren('ROLL · ', el('b', null, state.roll.name), ` · ${state.photos.length} EXPOSURES · ${fmtBytes(totalSize())}`);
-    lab.title = state.roll.dir;
+    if (remembered) {
+      lab.replaceChildren('ROLL · ', el('b', null, state.roll.name), ` · REMEMBERED · ${state.photos.length} SHOTS · RE-PICK TO RESTORE`);
+      lab.title = 'This roll was remembered by name. Pixels are never stored; re-pick the folder to restore it.';
+    } else {
+      lab.replaceChildren('ROLL · ', el('b', null, state.roll.name), ` · ${state.photos.length} EXPOSURES · ${fmtBytes(totalSize())}`);
+      lab.title = state.roll.dir;
+    }
     setLcd(state.photos.length);
     $('#rollCount').textContent = state.photos.length;
     updateFoot();
@@ -447,8 +525,13 @@
     if (!p.el) return;
     if (p.thumb) p.el.querySelector('img').src = p.thumb;
     const size = p.el.querySelector('.ri-size');
-    size.replaceChildren(fmtBytes(p.size));
+    if (p.missing) size.replaceChildren(el('span', 'missing-badge', 'MISSING'));
+    else size.replaceChildren(fmtBytes(p.size));
     if (p.out != null) size.append(' → ', el('span', 'out', fmtBytes(p.out)));
+    p.el.classList.toggle('remembered', !!p.remembered);
+    p.el.classList.toggle('missing', !!p.missing);
+    p.el.title = p.missing ? 'missing from folder'
+      : p.remembered ? 'remembered · re-pick the folder to restore' : '';
     const k = state.picks.indexOf(p.idx);
     p.el.classList.toggle('picked', k >= 0);
     p.el.querySelector('.ri-pick').textContent = k >= 0 ? String(k + 1) : '';
@@ -492,7 +575,7 @@
   async function genThumbs(token) {
     for (const p of state.photos) {
       if (token !== state.rollToken) return;
-      if (p.thumb) continue;
+      if (p.thumb || p.remembered) continue;
       try {
         const bmp = await decode(p);
         if (!previewCache.has(p.name) && previewCache.size < 24) cacheSource(p, bmp);
@@ -548,6 +631,7 @@
     if (p.w) parts.push(`${p.w}×${p.h}`);
     parts.push(fmtBytes(p.size));
     if (p.date) parts.push(p.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }));
+    if (p.remembered) parts.push('remembered · no pixels · re-pick the folder');
     if (state.s.mode === 'strip') {
       const g = groupOf(p, state.s.stripN);
       parts.push(g >= 0 ? `strip ${g + 1} of ${stripGroups(state.s.stripN).length}` : 'not on a strip');
@@ -581,7 +665,7 @@
   }
   async function renderPreview() {
     const p = state.photos[state.sel];
-    if (!p) return;
+    if (!p || p.remembered) return;
     const s = state.s;
     let out;
     const inStrip = s.mode !== 'strip' || groupOf(p, s.stripN) >= 0;
@@ -705,6 +789,7 @@
 
   async function develop(onlyCurrent) {
     if (state.busy || !state.photos.length) return;
+    if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
     const s = { ...state.s }, folder = safeFolder(s.folder);
     const strip = s.mode === 'strip';
     const cur = state.photos[state.sel];
@@ -778,9 +863,11 @@
   buildSliders();
   bindControls();
   syncControls();
+  showRememberedRoll();
 
   $('#loadBtn').onclick = pickFolder;
   $('#emptyLoad').onclick = pickFolder;
+  $('#rememberLoad').onclick = pickFolder;
   $('#prevBtn').onclick = () => select(state.sel - 1);
   $('#nextBtn').onclick = () => select(state.sel + 1);
   $('#developBtn').onclick = () => develop(false);

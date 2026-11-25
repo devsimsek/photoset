@@ -20,6 +20,17 @@ and `.png` results all follow the same rule.
 The full algorithm, with both the batch-level and on-disk checks, is documented in
 [internals/naming](internals/naming.md).
 
+## Rolls persist as metadata, never as pixels
+
+The darkroom may remember what a roll was: shot file names, sizes, modification
+times, capture dates it already read, picks, and the highest strip number it has
+produced. It may never store image bytes, data URLs, or any other encoding of
+pixel data.
+
+- **A remembered roll shows names without pixels.** After a reload, the contact
+  sheet lists the remembered shots as placeholders until the folder is re-picked;
+  the app never pretends pixels came back on their own.
+
 ## Originals are never touched
 
 The app reads your photos and writes results into a separate subfolder
