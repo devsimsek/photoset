@@ -56,7 +56,15 @@ paths and never commit outside them.
 | PS-22 | 375px layout pass, touch targets at least 44px | Open | `styles.css`, `index.html`, features/ | |
 | PS-23 | Keyboard navigation between photos (arrows, j/k) | Open | `app.js`, `index.html`, features/ | |
 | PS-24 | Paste photo from clipboard | Open | `app.js`, `web-api.js`, features/ | |
-| PS-25 | Batch error reporting: per-file errors listed, not swallowed | Open | `app.js`, `index.html`, `styles.css`, features/ | |
+| PS-25 | Batch error reporting: per-file errors listed, not swallowed | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `b8793c0`. Red proof: batch aborted at first failure pre-impl. 71/71 final. Per-job try/catch; summary toast `Developed 2, failed 1: bad.jpg (reason)`; successful batches unchanged. |
+
+## Wave 7, v0.6.0: RAW processing (per ADR 0004)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-26 | Decoder integration: FlashRaw lazy-loaded, self-hosted in web-dist | Open | `package.json`, `web-api.js`, `sw.js`, `build-web.js`, features/ | |
+| PS-27 | RAW load path: DNG/CR3/ARW accepted, instant embedded preview, progress, abort | Open | `app.js`, `web-api.js`, `engine.js`, `index.html`, `styles.css`, features/ | |
+| PS-28 | Latency measurement + ADR 0004 verification (24 MP target) | Open | `docs/adr/0004-raw-decoding.md`, features/ | |
 | PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
