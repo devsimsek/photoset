@@ -1,0 +1,19 @@
+name: BDD
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  bdd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - run: npx bddgen
+      - run: npx playwright test
