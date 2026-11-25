@@ -40,6 +40,7 @@ that control to the stock's value.
 | Quality | Encode quality (default 72). Applies to JPG and WebP; PNG ignores it. The size estimate updates as you move it. |
 | Format | Output format: JPG (default), WebP or PNG. The file extension follows the format. Loading is JPG-only by design. |
 | Size cap | Optional max output size per photo, in KB. Empty means no cap. JPG and WebP search for the largest quality that fits (down to quality 10, which ships even if it misses the cap); PNG is lossless, so it scales the long edge down in 10% steps to 50% instead. The size estimate reflects the cap. |
+| Keep EXIF | Writes the capture date back into JPG output as a minimal EXIF block. Off by default: a canvas re-encode strips EXIF, and WebP/PNG always skip it. |
 | Max edge | Long edge of the output in pixels. 0 keeps the original size. |
 | Mode | `single` develops one file per shot; `strip` composites shots onto 35mm strips, `stripN` shots per strip. |
 | Folder name | Subfolder for results (default `developed`). Unsafe characters are stripped. |

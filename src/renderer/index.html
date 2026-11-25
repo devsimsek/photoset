@@ -131,6 +131,9 @@
         <div class="row"><label>Size cap</label>
           <input type="number" data-k="capKB" data-num min="1" step="10" placeholder="Off" title="Max output size per photo, in KB">
         </div>
+        <div class="row"><label>Keep EXIF</label>
+          <label class="switch" title="Write the capture date back into JPG output"><input type="checkbox" data-k="keepExif"><span></span></label>
+        </div>
         <div class="row"><label>Max size</label>
           <select data-k="maxEdge" data-num>
             <option value="0">Original size</option>
@@ -174,6 +177,7 @@
 <div class="toast" id="toast"><span id="toastMsg"></span><button class="link" id="toastAction" hidden></button></div>
 
 <script src="engine.js"></script>
+<script src="exif.js"></script>
 <script src="web-api.js"></script>
 <script src="app.js"></script>
 </body>

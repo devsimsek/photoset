@@ -16,7 +16,7 @@
     aspect: 'orig', frame: 'none', date: false,
   };
   const LOOK_KEYS = Object.keys(BASE);
-  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg' };
+  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg', keepExif: false };
   const EXT = { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/png': 'png' };
 
   const STOCKS = [
@@ -580,7 +580,9 @@
         }
         const blob = await encodeFits(canvas, { ...s, format: fmt });
         canvas.width = canvas.height = 0;
-        await api.writeFile(folder, name, await blob.arrayBuffer(), fmt);
+        let bytes = await blob.arrayBuffer();
+        if (s.keepExif && fmt === 'image/jpeg') bytes = Exif.stamp(new Uint8Array(bytes), group[0].date).buffer;
+        await api.writeFile(folder, name, bytes, fmt);
         before += group.reduce((a, q) => a + q.size, 0);
         after += blob.size;
         done++;
