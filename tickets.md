@@ -18,10 +18,10 @@ paths and never commit outside them.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-8 | Multi-format encode: PNG and WebP alongside JPG | Open | `engine.js`, features/ | |
-| PS-9 | Output panel: per-batch format, quality, size cap | Open | `app.js`, `index.html`, `styles.css` | |
-| PS-10 | RAW decoder spike, ADR 0004 | Open (research) | `docs/adr/0004-*.md`, research notes | |
-| PS-11 | EXIF re-injector: keep EXIF option, default off | Open | new module, `app.js`, `index.html`, `build-web.js` FILES list | |
+| PS-8 | Multi-format encode: PNG and WebP alongside JPG | Done | `engine.js`, `app.js`, `web-api.js`, features/ | Commit `b41e00b`. Red proof quoted (3 failed pre-impl), 14/14 green. Naming law made extension-aware; loading stays JPG-only. Safari WebP `toBlob` unverified, check on a real device. |
+| PS-9 | Output panel: per-batch format, quality, size cap | Done | `app.js`, `index.html`, `styles.css` | Commit `deb6103`. Red proof quoted, 18/18 green. `encodeFits`: JPG/WebP binary-search quality; PNG downscales in 10% steps. Cap defaults off. |
+| PS-10 | RAW decoder spike, ADR 0004 | Done (research) | `docs/adr/0004-raw-decoding.md` | Commits `66fb1f1` -> `2880d6a`. Decision: FlashRaw pinned exact, `libraw-wasm` fallback, DNG-only emergency. 1.27 MB gz wasm, lazy asset outside the 150 KB ratchet by ADR exception. Real-browser 24 MP latency: measure in Wave 7. |
+| PS-11 | EXIF re-injector: keep EXIF option, default off | Done | `exif.js` (new), `app.js`, `index.html`, `build-web.js` FILES | Commit `bd551cf`. Red proof quoted (on-scenario), 20/20 green. APP1 writer, JPG only; WebP/PNG skip by design. |
 
 ## Future waves (planned, not ticketed yet)
 
