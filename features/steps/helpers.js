@@ -7,13 +7,15 @@ export function quoted(text) {
 }
 
 // Loads a roll through api.fromFiles and window.__darkroom.loadRoll, building
-// real JPEG bytes in the page. specs: [{ name, rel?, busy? }] where rel is the
-// fake webkitRelativePath a browser would report for folder picks and busy
-// makes a larger, high-detail (incompressible) 256x192 shot.
+// real JPEG bytes in the page. specs: [{ name, rel?, busy?, garbage? }] where
+// rel is the fake webkitRelativePath a browser would report for folder picks,
+// busy makes a larger, high-detail (incompressible) 256x192 shot, and garbage
+// swaps the bytes for undecodable noise that still carries a .jpg name.
 export async function loadRoll(page, specs, rollName) {
   await openApp(page);
   return page.evaluate(async ({ specs, rollName }) => {
-    const makeJpeg = async (busy) => {
+    const makeJpeg = async (busy, garbage) => {
+      if (garbage) return crypto.getRandomValues(new Uint8Array(200));
       const c = document.createElement('canvas');
       c.width = busy ? 256 : 64;
       c.height = busy ? 192 : 48;
@@ -38,7 +40,7 @@ export async function loadRoll(page, specs, rollName) {
     };
     const files = [];
     for (const s of specs) {
-      const f = new File([await makeJpeg(!!s.busy)], s.name, { type: 'image/jpeg' });
+      const f = new File([await makeJpeg(!!s.busy, !!s.garbage)], s.name, { type: 'image/jpeg' });
       if (s.rel) Object.defineProperty(f, 'webkitRelativePath', { value: s.rel });
       files.push(f);
     }

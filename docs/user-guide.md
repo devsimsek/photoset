@@ -87,6 +87,11 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 - A single shot can be saved on its own with SAVE THIS (the current preview).
 - DEVELOP runs the whole selection; progress shows per shot with a before → after
   size total.
+- **A failed shot never stops the batch.** If a shot cannot be developed, the run
+  finishes the rest and the end-of-batch toast lists every failure by name with a
+  reason, for example: *developed 9, failed 1: vacation_04.jpg (could not be
+  decoded)*. Shots flagged MISSING from the folder are skipped by the batch and
+  are not reported as failures.
 
 ## Your rolls, remembered
 

@@ -834,7 +834,8 @@
     setProgress(0);
     clearTimeout(estTimer);
     estSeq++;
-    let before = 0, after = 0, done = 0;
+    let before = 0, after = 0, done = 0, attempts = 0;
+    const failures = []; // "name (reason)" entries, reported at the end of the run
     // Strips continue the roll's numbering: the remembered high-water mark is
     // where the next batch starts, and whatever the output actually accepts
     // (collision bumps included) moves the mark forward.
@@ -844,38 +845,49 @@
       const fmt = EXT[s.format] ? s.format : 'image/jpeg';
       const ext = EXT[fmt];
       for (const j of jobs) {
-        let canvas, group, name;
-        if (strip) {
-          ({ canvas, group } = await renderStripFull(j, s));
-          name = `strip_${String(stripBase + j + 1).padStart(3, '0')}.${ext}`;
-        } else {
-          const p = state.photos[j];
-          group = [p];
-          canvas = await renderSingleFull(p, s);
-          name = p.name.replace(/\.jpe?g$/i, '') + '.' + ext;
+        attempts++;
+        let canvas, group, name, label;
+        try {
+          if (strip) {
+            label = name = `strip_${String(stripBase + j + 1).padStart(3, '0')}.${ext}`;
+            ({ canvas, group } = await renderStripFull(j, s));
+          } else {
+            const p = state.photos[j];
+            group = [p];
+            name = p.name.replace(/\.jpe?g$/i, '') + '.' + ext;
+            label = p.name;
+            canvas = await renderSingleFull(p, s);
+          }
+          const blob = await encodeFits(canvas, { ...s, format: fmt });
+          canvas.width = canvas.height = 0;
+          let bytes = await blob.arrayBuffer();
+          if (s.keepExif && fmt === 'image/jpeg') bytes = Exif.stamp(new Uint8Array(bytes), group[0].date).buffer;
+          const written = await api.writeFile(folder, name, bytes, fmt);
+          const stripNum = String(written).match(/strip_(\d+)/);
+          if (stripNum) {
+            state.stripHigh = Math.max(state.stripHigh, +stripNum[1]);
+            persistRoll();
+          }
+          before += group.reduce((a, q) => a + q.size, 0);
+          after += blob.size;
+          done++;
+          if (!strip) { group[0].out = blob.size; updateItem(group[0]); }
+        } catch (e) {
+          // One bad shot never stops the batch: name it with a reason and go on.
+          console.error('develop failed:', label || `#${j}`, e);
+          failures.push(`${label || `#${j}`} (${String(e.message || e).trim()})`);
+          if (canvas) { canvas.width = canvas.height = 0; canvas = null; }
         }
-        const blob = await encodeFits(canvas, { ...s, format: fmt });
-        canvas.width = canvas.height = 0;
-        let bytes = await blob.arrayBuffer();
-        if (s.keepExif && fmt === 'image/jpeg') bytes = Exif.stamp(new Uint8Array(bytes), group[0].date).buffer;
-        const written = await api.writeFile(folder, name, bytes, fmt);
-        const stripNum = String(written).match(/strip_(\d+)/);
-        if (stripNum) {
-          state.stripHigh = Math.max(state.stripHigh, +stripNum[1]);
-          persistRoll();
-        }
-        before += group.reduce((a, q) => a + q.size, 0);
-        after += blob.size;
-        done++;
-        if (!strip) { group[0].out = blob.size; updateItem(group[0]); }
-        setProgress(done / jobs.length);
-        setLcd(jobs.length - done);
-        $('#devNote').textContent = `Developing ${done} / ${jobs.length}…`;
+        setProgress(attempts / jobs.length);
+        setLcd(jobs.length - attempts);
+        $('#devNote').textContent = `Developing ${attempts} / ${jobs.length}…`;
         await yieldUI();
       }
       const downloaded = api.endBatch ? await api.endBatch() : null;
       const what = strip ? 'strip' : 'photo';
-      const msg = `Developed ${done} ${what}${done === 1 ? '' : 's'} · ${fmtBytes(before)} → ${fmtBytes(after)} (${pct(after / before)})`;
+      let msg = `Developed ${done} ${what}${done === 1 ? '' : 's'}`;
+      if (failures.length) msg = `Developed ${done}, failed ${failures.length}: ${failures.join(', ')}`;
+      else msg += ` · ${fmtBytes(before)} → ${fmtBytes(after)} (${pct(after / before)})`;
       if (downloaded) toast(`${msg} · downloaded ${downloaded}`);
       else if (isWeb) toast(msg);
       else toast(msg, 'OPEN FOLDER', () => api.openOutput(folder));
