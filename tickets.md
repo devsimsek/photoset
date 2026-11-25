@@ -7,12 +7,12 @@ paths and never commit outside them.
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
 | PS-1 | Web-only strip (Electron removed) | Done | `package.json`, `build/`, `src/renderer/` | Commit `fd60baf`. Build clean, `serve:web` 200 smoke test. |
-| PS-2 | Gherkin BDD harness (loading, developing, saving, naming) | In Progress (agent) | `features/`, playwright config, `package.json` | Suite in progress; scenarios for load, develop, save, naming. |
-| PS-3 | Pages deploy + BDD gate workflows | In Progress (agent) | `.github/` | `pages.yml` and `bdd.yml` in progress. |
-| PS-4 | Docs + ADRs | In Progress (this ticket) | `tickets.md`, `docs/`, `mkdocs.yml` | This commit. MkDocs build zero errors; output kept out of `web-dist/`. |
-| PS-5 | LICENSE + README rewrite | In Progress (agent) | `LICENSE`, `README.md` | Rewrite in progress. |
-| PS-6 | AGENTS.md | Open | `AGENTS.md` | Not started. |
-| PS-7 | Git repo to GitHub, Pages arming, tag v0.0.1 | Open (owner-gated deploy) | GitHub repo settings, Pages, tags | Owner act: repo creation, Pages arming via `gh` cli. Nothing deploys from a machine. |
+| PS-2 | Gherkin BDD harness (loading, developing, saving, naming) | Done | `features/`, playwright config, `package.json` | Commit `f2c1833`. 10 scenarios pass, 0 skipped. Re-verified 10/10 at integration. |
+| PS-3 | Pages deploy + BDD gate workflows | Done | `.github/` | Commit `e58ca5b`. `actionlint` zero findings on both files, re-checked at integration. |
+| PS-4 | Docs + ADRs | Done | `tickets.md`, `docs/`, `mkdocs.yml` | Commit `7d7603e`. MkDocs build zero errors incl. `--strict`. |
+| PS-5 | LICENSE + README rewrite | Done | `LICENSE`, `README.md` | Commit `0ec45f0`. No desktop mentions remain. |
+| PS-6 | AGENTS.md | Done (on disk, no commit) | `AGENTS.md` | Written; gitignored by owner policy, like agent instruction files in other repos. |
+| PS-7 | Git repo to GitHub, Pages arming, tag v0.0.1 | In Progress | GitHub repo settings, Pages, tags | `gh` cli per owner instruction: create repo, push, arm Pages, verify the workflow run, tag `v0.0.1`. |
 
 ## Future waves (planned, not ticketed yet)
 
