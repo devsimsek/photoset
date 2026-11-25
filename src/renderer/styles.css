@@ -207,6 +207,21 @@ button { cursor: pointer; }
 .ri-thumb::before { top: 1px; }
 .ri-thumb::after { bottom: 1px; }
 .ri-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 1px; }
+/* RAW tiles decode in the background: a small spinner sits in the corner
+   until the real decode replaces the embedded preview. */
+.ri-thumb .dec-spin { display: none; }
+.ri-thumb.decoding .dec-spin {
+  display: block;
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid rgba(255, 196, 106, 0.35);
+  border-top-color: #ffc46a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
 .ri-meta { min-width: 0; }
 .ri-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ri-size { font-family: var(--mono); font-size: 10px; color: var(--faint); }

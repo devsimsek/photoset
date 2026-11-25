@@ -193,8 +193,18 @@ Then('the page boots again controlled by the new service worker version', async 
     return navigator.serviceWorker.controller && window.__darkroom ? true : undefined;
   }, { timeout: 10000 });
   // The running controller answers STATS with its VERSION constant; only the
-  // newly deployed bytes report the update-test version.
-  const version = await swPageStatsVersion(page);
+  // newly deployed bytes report the update-test version. The click triggers a
+  // page reload, so the check retries across the navigation instead of racing
+  // it (this flaked once on CI's two workers).
+  let version = null;
+  for (let i = 0; i < 5 && version !== 'update-test-v2'; i++) {
+    try {
+      version = await swPageStatsVersion(page);
+    } catch (e) {
+      if (!/Execution context was destroyed|Target closed/i.test(String(e?.message ?? e))) throw e;
+      await page.waitForFunction(() => !!(window.api && window.__darkroom), { timeout: 10000 }).catch(() => {});
+    }
+  }
   if (version !== 'update-test-v2') {
     throw new Error(`expected the page to be controlled by the new version, controller reports ${JSON.stringify(version)}`);
   }

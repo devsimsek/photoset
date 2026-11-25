@@ -414,13 +414,14 @@
 
   async function loadRoll(roll) {
     if (!roll) return;
-    if (!roll.files.length) { toast(`No .jpg files found in “${roll.name}”`); return; }
+    if (!roll.files.length) { toast(`No photos found in “${roll.name}”`); return; }
     // Relink: a remembered roll re-attaches when at least half of its shots are
     // present in the picked folder by exact file name. The roll name is only a hint.
     const meta = rememberedMeta();
     const hits = meta ? roll.files.filter((f) => meta.photos.some((m) => m.name === f.name)) : null;
     const relink = hits && hits.length > 0 && hits.length * 2 >= meta.photos.length ? meta : null;
     state.rollToken++;
+    rearmRawAbort(); // any RAW decode of the previous roll is dead weight now
     for (const p of state.photos) if (p.thumb) URL.revokeObjectURL(p.thumb);
     previewCache.clear();
     state.roll = roll;
@@ -539,7 +540,7 @@
       const thumb = el('div', 'ri-thumb');
       const img = document.createElement('img');
       img.alt = '';
-      thumb.append(img);
+      thumb.append(img, el('span', 'dec-spin'));
       const meta = el('div', 'ri-meta');
       meta.append(el('div', 'ri-name', p.name), el('div', 'ri-size'));
       const pick = el('button', 'ri-pick');
@@ -561,6 +562,9 @@
     if (p.out != null) size.append(' → ', el('span', 'out', fmtBytes(p.out)));
     p.el.classList.toggle('remembered', !!p.remembered);
     p.el.classList.toggle('missing', !!p.missing);
+    // RAW tiles spin until their real decode replaces the embedded preview
+    // (or fills the tile for files without one).
+    p.el.querySelector('.ri-thumb').classList.toggle('decoding', isRaw(p.name) && p.rawState !== 'decoded');
     p.el.title = p.missing ? 'missing from folder'
       : p.remembered ? 'remembered · re-pick the folder to restore' : '';
     const k = state.picks.indexOf(p.idx);
@@ -573,17 +577,59 @@
     num.title = g >= 0 ? `On strip ${g + 1}` : '';
   }
 
-  // decoding
+  // ---------- decoding ----------
+  // RAW shots (ADR 0004) decode through the self-hosted FlashRaw decoder and
+  // feed the SAME pipeline: decodeRaw hands back a canvas, everything after it
+  // is renderLook on canvas sources. Each roll owns one AbortController so a
+  // roll change aborts every in-flight RAW decode.
+  let rawAbort = new AbortController();
+  const rawSignal = () => rawAbort.signal;
+  const isRaw = (name) => api.isRaw(name);
+
+  function rearmRawAbort() {
+    rawAbort.abort();
+    rawAbort = new AbortController();
+  }
+
+  // Full transient RAW decode: decode-then-drop, no caching. Used by develop
+  // and the size estimate, where the pixels are consumed immediately.
+  async function decodeRawFull(p) {
+    const c = await api.decodeRaw(p.name, { signal: rawSignal() });
+    if (!p.w) { p.w = c.width; p.h = c.height; }
+    if (!p.date) {
+      // RAW has no JPEG EXIF; the capture date comes from RAW metadata when
+      // the file carries one, and stays unset when it does not.
+      const t = await api.rawDate(p.name, { signal: rawSignal() });
+      p.date = t ? new Date(t) : null;
+    }
+    return c;
+  }
+
   async function blobOf(p) {
     const data = await api.readFile(p.name);
     return new Blob([data], { type: 'image/jpeg' });
   }
+
   async function decode(p) {
+    if (isRaw(p.name)) return decodeRawFull(p);
     const blob = await blobOf(p);
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     if (!p.w) { p.w = bmp.width; p.h = bmp.height; }
     if (!p.date) p.date = (await Engine.exifDate(blob)) || new Date(p.mtime);
     return bmp;
+  }
+  // Bitmaps close themselves; decoded RAW canvases release their pixels by
+  // being zeroed. Both mean "I am done with these pixels".
+  const dropSource = (b) => {
+    if (!b) return;
+    if (b.close) b.close();
+    else { b.width = 0; b.height = 0; }
+  };
+  // One decoded RAW shot may live in memory per view: the others are dropped.
+  function dropRawSources(keep) {
+    for (const p of state.photos) {
+      if (p.rawSrc && p !== keep) { p.rawSrc.width = 0; p.rawSrc.height = 0; p.rawSrc = null; }
+    }
   }
   const previewCache = new Map();
   function cacheSource(p, bmp) {
@@ -599,24 +645,77 @@
   async function getSource(p) {
     const hit = previewCache.get(p.name);
     if (hit) { previewCache.delete(p.name); previewCache.set(p.name, hit); return hit; }
+    // RAW: the in-view shot keeps its full decode; every other shot's is
+    // dropped. The decode replaces the tile's embedded-preview thumb.
+    if (isRaw(p.name)) {
+      let full = p.rawSrc;
+      if (!full) {
+        full = p.rawSrc = await decode(p);
+        dropRawSources(p);
+        refreshRawThumb(p);
+      }
+      return full;
+    }
     const bmp = await decode(p);
-    try { return cacheSource(p, bmp); } finally { bmp.close(); }
+    try { return cacheSource(p, bmp); } finally { dropSource(bmp); }
+  }
+
+  // 136x100 cover thumb as a JPEG blob URL; works for bitmaps and canvases.
+  async function thumbURL(src) {
+    const t = Engine.mk(136, 100), x = t.getContext('2d');
+    const s = Math.max(136 / src.width, 100 / src.height);
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(src, (136 - src.width * s) / 2, (100 - src.height * s) / 2, src.width * s, src.height * s);
+    const blob = await Engine.encode(t, 82);
+    t.width = t.height = 0;
+    return URL.createObjectURL(blob);
+  }
+
+  // RAW tiles: the embedded preview lands within milliseconds of the roll
+  // loading; the full decode (when the shot is viewed or developed) replaces
+  // it. A file with no embedded preview waits for its decode.
+  async function rawThumb(p, token) {
+    try {
+      const jpg = await api.rawPreview(p.name, { signal: rawSignal() });
+      if (token !== state.rollToken) return;
+      p.rawState = jpg ? 'preview' : 'stalled';
+      if (!jpg) { updateItem(p); return; }
+      const bmp = await createImageBitmap(new Blob([jpg], { type: 'image/jpeg' }));
+      try {
+        if (token !== state.rollToken) return;
+        p.thumb = await thumbURL(bmp);
+      } finally { dropSource(bmp); }
+      updateItem(p);
+      if (p.idx === state.sel) updateFrameInfo();
+    } catch (e) {
+      console.warn('raw preview thumb failed', p.name, e);
+    }
+  }
+
+  // The tile thumb follows the real decode once there is one.
+  async function refreshRawThumb(p) {
+    if (!p.rawSrc) return;
+    p.rawState = 'decoded';
+    try {
+      const url = await thumbURL(p.rawSrc);
+      if (p.thumb) URL.revokeObjectURL(p.thumb);
+      p.thumb = url;
+      updateItem(p);
+      if (p.idx === state.sel) updateFrameInfo();
+    } catch (e) { console.warn('raw thumb refresh failed', p.name, e); }
   }
 
   async function genThumbs(token) {
     for (const p of state.photos) {
       if (token !== state.rollToken) return;
       if (p.thumb || p.remembered || p.missing) continue;
+      if (isRaw(p.name)) { await rawThumb(p, token); continue; }
       try {
         const bmp = await decode(p);
         if (!previewCache.has(p.name) && previewCache.size < 24) cacheSource(p, bmp);
-        const t = Engine.mk(136, 100), x = t.getContext('2d');
-        const s = Math.max(136 / bmp.width, 100 / bmp.height);
-        x.imageSmoothingQuality = 'high';
-        x.drawImage(bmp, (136 - bmp.width * s) / 2, (100 - bmp.height * s) / 2, bmp.width * s, bmp.height * s);
-        bmp.close();
-        if (token !== state.rollToken) return;
-        p.thumb = URL.createObjectURL(await Engine.encode(t, 82));
+        if (token !== state.rollToken) { dropSource(bmp); return; }
+        p.thumb = await thumbURL(bmp);
+        dropSource(bmp);
         updateItem(p);
         if (p.idx === state.sel) updateFrameInfo();
       } catch (e) {
@@ -649,6 +748,9 @@
     if (!state.photos.length) return;
     i = Math.max(0, Math.min(state.photos.length - 1, i));
     state.sel = i;
+    // Leaving a shot drops its decoded RAW pixels: one full decode lives at a
+    // time, the next view decodes again on demand.
+    dropRawSources(null);
     document.querySelectorAll('.roll-item.sel').forEach((n) => n.classList.remove('sel'));
     const p = state.photos[i];
     if (p.el) { p.el.classList.add('sel'); p.el.scrollIntoView({ block: 'nearest' }); }
@@ -729,7 +831,7 @@
   async function renderSingleFull(p, s) {
     const bmp = await decode(p);
     try { return applyFrameLabeled(Engine.renderLook(bmp, p, s, s.maxEdge || Infinity), s, p.idx); }
-    finally { bmp.close(); }
+    finally { dropSource(bmp); }
   }
   async function renderStripFull(gi, s) {
     const group = stripGroups(s.stripN)[gi];
@@ -737,7 +839,7 @@
     const frames = [];
     for (const q of group) {
       const bmp = await decode(q);
-      try { frames.push(Engine.renderLook(bmp, q, s, edge, stripAspect(s))); } finally { bmp.close(); }
+      try { frames.push(Engine.renderLook(bmp, q, s, edge, stripAspect(s))); } finally { dropSource(bmp); }
     }
     return { canvas: composeStripLabeled(frames, gi * s.stripN + 1), group };
   }
@@ -854,7 +956,7 @@
           } else {
             const p = state.photos[j];
             group = [p];
-            name = p.name.replace(/\.jpe?g$/i, '') + '.' + ext;
+            name = p.name.replace(/\.[a-z0-9]+$/i, '') + '.' + ext;
             label = p.name;
             canvas = await renderSingleFull(p, s);
           }

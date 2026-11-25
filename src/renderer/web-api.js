@@ -161,17 +161,28 @@
   // Decode-call accounting for the BDD suite and debugging (abort coverage).
   const rawStats = { started: 0, done: 0, aborted: 0 };
   // A stall hook the RAW scenarios set (ms) to hold decodeRaw before the pool
-  // call; the abort is then observable deterministically.
+  // call; the abort is then observable deterministically. Clearing it (or
+  // setting another delay) releases everything currently stalled.
   let stallDecode = 0;
+  const stalled = new Set();
 
   function stall(signal) {
     if (!stallDecode) return Promise.resolve();
     return new Promise((resolve, reject) => {
-      const t = setTimeout(resolve, stallDecode);
-      signal?.addEventListener('abort', () => {
+      const finish = () => {
         clearTimeout(t);
+        stalled.delete(finish);
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      const onAbort = () => {
+        clearTimeout(t);
+        stalled.delete(finish);
         reject(signal.reason || new DOMException('aborted', 'AbortError'));
-      }, { once: true });
+      };
+      const t = setTimeout(finish, stallDecode);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      stalled.add(finish);
     });
   }
 
@@ -346,7 +357,10 @@
     isRaw: (name) => RAW.test(name),
     _rawStats: rawStats,
     get _stallDecode() { return stallDecode; },
-    set _stallDecode(ms) { stallDecode = ms; },
+    set _stallDecode(ms) {
+      stallDecode = ms;
+      if (!ms) for (const finish of [...stalled]) finish();
+    },
   };
   window.api = api;
 })();
