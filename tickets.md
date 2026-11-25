@@ -31,7 +31,7 @@ paths and never commit outside them.
 | PS-13 | Film library: save, rename, delete, edit reopens, persistence | Done | `app.js`, features/ | Commit `7809e9c`. Red proof: 7 failed pre-impl. 32/32 green. `darkroom.films` localStorage, re-validated on load; built-ins never mutate; byte-identical develop after reload (grain-0 film; engine grain uses Math.random, not the seeded RNG). |
 | PS-14 | Studio editor UI + film name on the strip edge print | Done | `app.js`, `engine.js`, `index.html`, `styles.css` | Commit `826a02c`. Red proof: 1 failed pre-impl. 35/35 green. `composeStrip` label param, default 'PHOTOSET 400' unchanged; custom films print their name. |
 | PS-15 | MkDocs theme: switch Material to shadcn | Done | `mkdocs.yml`, `.github/workflows/pages.yml` | Commits `39b25b8` (ci) + `4ffafe4` (theme). Strict shadcn build exit 0. Note: three Pages deploys failed mid-wave with 'Unrecognised theme name: material' (CI installed shadcn before mkdocs.yml switched); fixed forward by PS-15. |
-| PS-15a | AGENTS.md refresh for new commands/contracts | Open | `AGENTS.md` (on disk, no commit) | Owner policy: gitignored. Update at wave end. |
+| PS-15a | AGENTS.md refresh for new commands/contracts | Done (on disk, no commit) | `AGENTS.md` (on disk, no commit) | Owner policy: gitignored. Refreshed through Wave 7: rolls, films, sw version injection, grain non-determinism, batch error shape, keyboard, paste, flashraw as the one runtime dependency. |
 
 ## Wave 4, v0.3.0: PWA / offline
 
@@ -45,17 +45,17 @@ paths and never commit outside them.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-19 | Persistence upgrade: films, settings, roll metadata (pixels never) | Open | `app.js`, `web-api.js`, features/ | |
-| PS-20 | Roll relink: re-pick folder auto-matches by name, numbering continues | Open | `app.js`, `web-api.js`, features/ | |
+| PS-19 | Persistence upgrade: films, settings, roll metadata (pixels never) | Done | `app.js`, `web-api.js`, features/ | Commit `b6c85a4`. Red proof: 4 failed pre-impl. `darkroom.roll` metadata only; remembered-roll state with re-pick banner; storage-size scenario pins pixels-never. 48/48 at commit. |
+| PS-20 | Roll relink: re-pick folder auto-matches by name, numbering continues | Done | `app.js`, `web-api.js`, features/ | Commit `a38fbcb`. Red proof: 3 failed pre-impl. Half-match threshold; `strip_004` remembered -> next batch `strip_005`; picks restore by file name; phantom picks for vanished files dropped. 51/51 at commit. |
 | PS-21 | Non-matching files flagged in the photo list | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `d2d456d`. Red proof: 3 failed pre-impl. 54/54 final. Dimmed rows with MISSING badge; batch and strip grouping skip them; different folder replaces memory wholesale. |
 
 ## Wave 6, v0.5.0: mobile + QOL
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-22 | 375px layout pass, touch targets at least 44px | Open | `styles.css`, `index.html`, features/ | |
-| PS-23 | Keyboard navigation between photos (arrows, j/k) | Open | `app.js`, `index.html`, features/ | |
-| PS-24 | Paste photo from clipboard | Open | `app.js`, `web-api.js`, features/ | |
+| PS-22 | 375px layout pass, touch targets at least 44px | Done | `styles.css`, `index.html`, features/ | Commit `3d46ae9`. Red proof: 38.8px develop button, 18px slider input pre-impl. 44px targets across controls; hit-area ::after for links. 57/57 at commit. |
+| PS-23 | Keyboard navigation between photos (arrows, j/k) | Done | `app.js`, `index.html`, features/ | Commit `7d1ea4b`. Red proof: ArrowDown and j left selection unmoved. All arrows + j/k, Enter develops, Escape closes, typing guard covers input/textarea/select/[contenteditable]. 64/64 at commit. |
+| PS-24 | Paste photo from clipboard | Done | `app.js`, `web-api.js`, features/ | Commit `33e5604`. Red proof: paste a complete no-op pre-impl. JPEG as-is, PNG canvas-converted to JPG, others refused by name; joins remembered roll; starts "pasted" roll. 69/69 at commit. |
 | PS-25 | Batch error reporting: per-file errors listed, not swallowed | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `b8793c0`. Red proof: batch aborted at first failure pre-impl. 71/71 final. Per-job try/catch; summary toast `Developed 2, failed 1: bad.jpg (reason)`; successful batches unchanged. |
 
 ## Wave 7, v0.6.0: RAW processing (per ADR 0004)
@@ -65,7 +65,6 @@ paths and never commit outside them.
 | PS-26 | Decoder integration: FlashRaw lazy-loaded, self-hosted in web-dist | Done | `package.json`, `web-api.js`, `sw.js`, `build-web.js`, features/ | Commit `c7e7b66`. Red proof: decodeRaw absent pre-impl. `flashraw@0.5.0` pinned exact, first runtime dependency. Decoder dist copied into `web-dist/flashraw/` (list derived from the installed package); sw serves it cache-first into `photoset-decoder-<version>`, filled on first fetch, never install-precached. Offline second decode proven. |
 | PS-27 | RAW load path: DNG/CR3/ARW accepted, instant embedded preview, progress, abort | Done | `app.js`, `web-api.js`, `engine.js`, features/ | Commit `620db25`. Red proof: 4 failed pre-impl. Loaders accept .dng/.cr3/.arw; embedded preview instant, decode-on-demand then drop; roll change aborts via AbortController (proved by stats counting). Fixture: CC0 Blackmagic CinemaDNG + appended preview SubIFD, checksums in features/fixtures/README.md. Keep-EXIF for RAW writes the capture date when metadata carries one (fixture has none). |
 | PS-28 | Latency measurement + ADR 0004 verification (24 MP target) | Done | `docs/adr/0004-raw-decoding.md`, `docs/laws.md`, `docs/user-guide.md`, `docs/internals/raw.md` | Commit `e974c31`. 24 MP Ricoh GR III: 655-674 ms warm in Chromium (budget 5 s, 7x margin). Fixture: 71 ms. ADR unverified item moved to Verified. Nav gaps for ADR 0004 + internals/raw.md fixed in `6c356c7`. Remaining unverified, recorded: CR3/ARW in-browser (no clean CC0 fixture, 20-30 MB), FlashRaw mid-decode worker cancellation, JPEG XL DNG second binary. |
-| PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
 

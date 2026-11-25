@@ -26,6 +26,16 @@ Feature: Export formats
     Then the first file is saved as "strip_001.webp"
     And the second file is saved as "strip_002.webp"
 
+  Scenario: The never-overwrite law holds for PNG names
+    When the photographer saves two developed files called "holiday.png"
+    Then the first file is saved as "holiday.png"
+    And the second file is saved as "holiday (2).png"
+
+  Scenario: Strip numbering continues for PNG strips
+    When the photographer saves two developed files called "strip_001.png"
+    Then the first file is saved as "strip_001.png"
+    And the second file is saved as "strip_002.png"
+
   Scenario: A capped develop stays under the cap when a quality fits
     Given the photographer loaded a busy roll with "lake.jpg"
     And the photographer chose JPG output
