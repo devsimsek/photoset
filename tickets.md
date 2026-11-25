@@ -23,14 +23,20 @@ paths and never commit outside them.
 | PS-10 | RAW decoder spike, ADR 0004 | Done (research) | `docs/adr/0004-raw-decoding.md` | Commits `66fb1f1` -> `2880d6a`. Decision: FlashRaw pinned exact, `libraw-wasm` fallback, DNG-only emergency. 1.27 MB gz wasm, lazy asset outside the 150 KB ratchet by ADR exception. Real-browser 24 MP latency: measure in Wave 7. |
 | PS-11 | EXIF re-injector: keep EXIF option, default off | Done | `exif.js` (new), `app.js`, `index.html`, `build-web.js` FILES | Commit `bd551cf`. Red proof quoted (on-scenario), 20/20 green. APP1 writer, JPG only; WebP/PNG skip by design. |
 
+## Wave 3, v0.2.0: film studio
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-12 | Film schema v1 + import/export (file, paste, download, copy) | Open | `app.js`, `index.html`, features/ | |
+| PS-13 | Film library: save, rename, delete, edit reopens, persistence | Open | `app.js`, features/ | |
+| PS-14 | Studio editor UI + film name on the strip edge print | Open | `app.js`, `engine.js`, `index.html`, `styles.css` | |
+
 ## Future waves (planned, not ticketed yet)
 
 Ticketing happens when a wave starts. Scope may shift before then.
 
 | Version | Theme |
 | --- | --- |
-| v0.1.0 | Export options |
-| v0.2.0 | Film studio |
 | v0.3.0 | PWA |
 | v0.4.0 | Local storage / rolls |
 | v0.5.0 | Mobile + QOL |
