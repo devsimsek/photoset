@@ -8,6 +8,11 @@
   "scripts": {
     "icon": "node build/make-icon.js",
     "build:web": "node build/make-icon.js && node build/build-web.js",
-    "serve:web": "node build/build-web.js && node build/serve-web.js"
+    "serve:web": "node build/build-web.js && node build/serve-web.js",
+    "test:bdd": "bddgen && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "playwright-bdd": "^9.2.1"
   }
 }
