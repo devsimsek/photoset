@@ -353,9 +353,11 @@ const Engine = (() => {
     return c;
   }
 
-  function encode(canvas, quality) {
+  /** format: 'image/jpeg' (default), 'image/webp' or 'image/png'. */
+  function encode(canvas, quality, format) {
+    format = format || 'image/jpeg';
     return new Promise((res, rej) =>
-      canvas.toBlob((b) => (b ? res(b) : rej(new Error('JPEG encode failed'))), 'image/jpeg', quality / 100));
+      canvas.toBlob((b) => (b ? res(b) : rej(new Error('Encode failed: ' + format))), format, quality / 100));
   }
 
   // ---------- EXIF capture date ----------

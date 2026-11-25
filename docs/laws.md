@@ -5,14 +5,17 @@ change that weakens them ships.
 
 ## Never overwrite
 
-A save never replaces an existing file.
+A save never replaces an existing file, whatever the extension: `.jpg`, `.webp`
+and `.png` results all follow the same rule.
 
 - **Strips continue numbering.** When the target folder already holds
   `strip_001.jpg` (and on through the taken numbers), a new strip takes the next
   free number with the same zero padding: `strip_004.jpg`. Padding width is
   preserved, so a two-digit run (`strip_01.jpg`) stays two digits (`strip_02.jpg`).
+  The same holds for `strip_001.webp` and `strip_001.png`.
 - **Everything else gets a copy number.** When `beach.jpg` exists, the next save
-  becomes `beach (2).jpg`, then `beach (3).jpg`.
+  becomes `beach (2).jpg`, then `beach (3).jpg`; `beach.webp` becomes
+  `beach (2).webp`.
 
 The full algorithm, with both the batch-level and on-disk checks, is documented in
 [internals/naming](internals/naming.md).

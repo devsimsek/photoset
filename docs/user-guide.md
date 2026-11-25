@@ -37,9 +37,10 @@ that control to the stock's value.
 
 | Setting | Meaning |
 | --- | --- |
-| Quality | JPEG quality (default 72). The size estimate updates as you move it. |
+| Quality | Encode quality (default 72). Applies to JPG and WebP; PNG ignores it. The size estimate updates as you move it. |
+| Format | Output format: JPG (default), WebP or PNG. The file extension follows the format. Loading is JPG-only by design. |
 | Max edge | Long edge of the output in pixels. 0 keeps the original size. |
-| Mode | `single` develops one JPG per shot; `strip` composites shots onto 35mm strips, `stripN` shots per strip. |
+| Mode | `single` develops one file per shot; `strip` composites shots onto 35mm strips, `stripN` shots per strip. |
 | Folder name | Subfolder for results (default `developed`). Unsafe characters are stripped. |
 | Date format | The orange seven-segment date stamp: `'YY MM DD`, `MM DD 'YY` or `DD MM 'YY`. |
 
@@ -48,7 +49,7 @@ that control to the stock's value.
 - **Chrome / Edge (desktop).** The app saves into a subfolder of the roll folder,
   `developed/` by default, and never touches the originals. Files never overwrite:
   see [The Laws](laws.md).
-- **Firefox, Safari, phones.** The results download: one JPG for a single shot, a
+- **Firefox, Safari, phones.** The results download: one file for a single shot, a
   `.zip` for a batch. The batch is held in memory until the zip is built, so very
   large rolls work best in Chrome or Edge.
 - A single shot can be saved on its own with SAVE THIS (the current preview).

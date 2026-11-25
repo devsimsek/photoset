@@ -16,7 +16,8 @@
     aspect: 'orig', frame: 'none', date: false,
   };
   const LOOK_KEYS = Object.keys(BASE);
-  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd' };
+  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg' };
+  const EXT = { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/png': 'png' };
 
   const STOCKS = [
     { id: 'natural', name: 'Clean\nScan', iso: 'RAW', c1: '#d8d2c4', c2: '#8a8f94', look: {} },
@@ -491,7 +492,7 @@
         before = p.size;
       }
       if (seq !== estSeq) return;
-      const blob = await Engine.encode(canvas, s.quality);
+      const blob = await Engine.encode(canvas, s.quality, s.format);
       if (seq !== estSeq) return;
       const ratio = blob.size / before, total = sequence().reduce((a, q) => a + q.size, 0);
       $('#estOne').textContent = `${fmtBytes(before)} → ${fmtBytes(blob.size)}  ${pct(ratio)}`;
@@ -527,20 +528,22 @@
     let before = 0, after = 0, done = 0;
     try {
       if (api.beginBatch) await api.beginBatch(folder); // first await: still inside the click, so the browser may ask for folder access
+      const fmt = EXT[s.format] ? s.format : 'image/jpeg';
+      const ext = EXT[fmt];
       for (const j of jobs) {
         let canvas, group, name;
         if (strip) {
           ({ canvas, group } = await renderStripFull(j, s));
-          name = `strip_${String(j + 1).padStart(3, '0')}.jpg`;
+          name = `strip_${String(j + 1).padStart(3, '0')}.${ext}`;
         } else {
           const p = state.photos[j];
           group = [p];
           canvas = await renderSingleFull(p, s);
-          name = p.name.replace(/\.jpe?g$/i, '') + '.jpg';
+          name = p.name.replace(/\.jpe?g$/i, '') + '.' + ext;
         }
-        const blob = await Engine.encode(canvas, s.quality);
+        const blob = await Engine.encode(canvas, s.quality, fmt);
         canvas.width = canvas.height = 0;
-        await api.writeFile(folder, name, await blob.arrayBuffer());
+        await api.writeFile(folder, name, await blob.arrayBuffer(), fmt);
         before += group.reduce((a, q) => a + q.size, 0);
         after += blob.size;
         done++;

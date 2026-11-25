@@ -11,10 +11,11 @@
   let roll = null;  // { name, dir: FileSystemDirectoryHandle|null, files: Map<name, File|FileSystemFileHandle> }
   let batch = null; // one develop run
 
-  // Same rule as the desktop app: never overwrite. strip_001 → next free number, anything else → "name (2).jpg".
+  // Same rule as the desktop app: never overwrite, for any extension.
+  // strip_001.webp → next free number, anything else → "name (2).webp".
   function candidateName(name, attempt) {
     if (attempt === 0) return name;
-    const strip = name.match(/^strip_(\d+)(\.jpe?g)$/i);
+    const strip = name.match(/^strip_(\d+)(\.[a-z0-9]+)$/i);
     if (strip) return `strip_${String(+strip[1] + attempt).padStart(strip[1].length, '0')}${strip[2]}`;
     const dot = name.lastIndexOf('.');
     return dot > 0 ? `${name.slice(0, dot)} (${attempt + 1})${name.slice(dot)}` : `${name} (${attempt + 1})`;
@@ -188,7 +189,9 @@
       return batch.dir ? 'folder' : 'download';
     },
 
-    async writeFile(folder, name, data) {
+    // type: the output mime type, so downloads and zips carry it. Defaults to JPEG.
+    async writeFile(folder, name, data, type) {
+      type = type || 'image/jpeg';
       if (batch && batch.dir) {
         const out = await uniqueFileHandle(batch.dir, name);
         const w = await out.handle.createWritable();
@@ -200,18 +203,18 @@
       let n = name;
       for (let a = 1; used.has(n.toLowerCase()); a++) n = candidateName(name, a);
       used.add(n.toLowerCase());
-      if (batch) batch.items.push({ name: n, data: new Uint8Array(data) });
-      else download(new Blob([data], { type: 'image/jpeg' }), n);
+      if (batch) batch.items.push({ name: n, data: new Uint8Array(data), type });
+      else download(new Blob([data], { type }), n);
       return n;
     },
 
-    // Hands the results over: nothing to do for folder mode; one JPG or a .zip for download mode.
+    // Hands the results over: nothing to do for folder mode; one file or a .zip for download mode.
     async endBatch() {
       const b = batch;
       batch = null;
       if (!b || b.dir || !b.items.length) return null;
       if (b.items.length === 1) {
-        download(new Blob([b.items[0].data], { type: 'image/jpeg' }), b.items[0].name);
+        download(new Blob([b.items[0].data], { type: b.items[0].type }), b.items[0].name);
         return b.items[0].name;
       }
       const zipName = `${roll.name}-${b.folder}.zip`;
