@@ -872,4 +872,13 @@
       if (p) await loadRoll(await api.openDir(p));
     } catch (err) { toast('Could not open: ' + err.message); }
   });
+
+  // ---------- service worker (web builds only) ----------
+  // Registered only in secure contexts with SW support, so file:// and plain
+  // non-SW browsers skip this silently. The relative URL keeps the registration
+  // correct under any deploy base path (GitHub Pages serves this app at /photoset/).
+  // Failures (blocked worker, unsupported browser) must never break the app.
+  if (isWeb && window.isSecureContext && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* offline helpers are optional */ });
+  }
 })();

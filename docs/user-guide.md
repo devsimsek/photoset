@@ -95,3 +95,18 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 | Chrome, Edge (desktop) | Pick or drop a folder | Saves into a `developed/` subfolder of it |
 | Firefox, Safari, others | Pick or drop a folder or photos | Downloads: one JPG, or a `.zip` for several |
 | Phones | Pick photos | Downloads |
+
+## Offline and the service worker
+
+After your first visit, the app's shell (page, scripts, styles, icon) is
+precached by a service worker. Reload the page with the network gone and the
+darkroom still boots from the cache, right down to the last film stock.
+
+- Navigations are network-first: when a new version deploys, a reload picks it
+  up. If the network is unavailable, the cached shell page answers instead.
+- Shell assets are cache-first with cache-and-update: offline visits serve the
+  stored copy, online visits refresh it in the background for next time.
+- Only GET requests ever touch the cache; everything else passes straight
+  through.
+- Your photos and develops never go through the service worker at all: loading
+  and saving happen entirely in the page.
