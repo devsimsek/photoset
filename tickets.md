@@ -30,6 +30,7 @@ paths and never commit outside them.
 | PS-12 | Film schema v1 + import/export (file, paste, download, copy) | Open | `app.js`, `index.html`, features/ | |
 | PS-13 | Film library: save, rename, delete, edit reopens, persistence | Open | `app.js`, features/ | |
 | PS-14 | Studio editor UI + film name on the strip edge print | Open | `app.js`, `engine.js`, `index.html`, `styles.css` | |
+| PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
 
