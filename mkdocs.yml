@@ -12,15 +12,12 @@ docs_dir: docs
 site_dir: site
 
 theme:
-  name: material
-  palette:
-    scheme: slate
-    primary: amber
-    accent: orange
-  features:
-    - content.code.copy
-    - navigation.sections
-    - navigation.top
+  name: shadcn
+  show_title: true
+  hide_source_files: true
+  pygments_style:
+    light: shadcn-light
+    dark: github-dark
 
 nav:
   - Home: index.md
