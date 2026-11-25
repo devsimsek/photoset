@@ -6,6 +6,9 @@
   document.documentElement.classList.add('web');
 
   const JPG = /\.jpe?g$/i;
+  // RAW containers load alongside JPGs (ADR 0004); the decoder is FlashRaw.
+  const RAW = /\.(dng|cr3|arw)$/i;
+  const isPhoto = (name) => JPG.test(name) || RAW.test(name);
   const canPickDir = typeof window.showDirectoryPicker === 'function';
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   let roll = null;  // { name, dir: FileSystemDirectoryHandle|null, files: Map<name, File|FileSystemFileHandle> }
@@ -25,7 +28,7 @@
   async function fromDirHandle(dir) {
     const files = new Map(), list = [];
     for await (const [name, h] of dir.entries()) {
-      if (h.kind !== 'file' || !JPG.test(name)) continue;
+      if (h.kind !== 'file' || !isPhoto(name)) continue;
       const f = await h.getFile();
       files.set(name, h);
       list.push({ name, size: f.size, mtime: f.lastModified });
@@ -39,7 +42,7 @@
     const files = new Map(), list = [];
     let name = label || '';
     for (const f of fileList) {
-      if (!JPG.test(f.name)) continue;
+      if (!isPhoto(f.name)) continue;
       const parts = (f.webkitRelativePath || '').split('/');
       if (parts.length > 2) continue; // top-level photos only, like the desktop app
       if (!name && parts.length === 2) name = parts[0];
@@ -58,7 +61,7 @@
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = true;
-      input.accept = '.jpg,.jpeg,image/jpeg';
+      input.accept = '.jpg,.jpeg,image/jpeg,.dng,.cr3,.arw';
       const folderMode = !matchMedia('(pointer: coarse)').matches; // phones: pick photos instead of a folder
       if (folderMode) input.webkitdirectory = true;
       input.onchange = () => resolve(input.files.length ? fromFiles([...input.files], folderMode ? '' : 'photos') : null);
@@ -75,7 +78,7 @@
           try { resolve(await Promise.all(out.map((e) => new Promise((ok, no) => e.file(ok, no))))); } catch (err) { reject(err); }
           return;
         }
-        for (const e of batchOf) if (e.isFile && JPG.test(e.name)) out.push(e);
+        for (const e of batchOf) if (e.isFile && isPhoto(e.name)) out.push(e);
         next();
       }, reject);
       next();
@@ -135,6 +138,99 @@
     end.setUint32(0, 0x06054b50, true); end.setUint16(8, items.length, true); end.setUint16(10, items.length, true);
     end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
     return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+  }
+
+  // ---------- RAW decoding (ADR 0004) ----------
+  // FlashRaw, self-hosted from web-dist/flashraw/ (build/build-web.js copies
+  // the package's dist files). The module loads ONLY on the first RAW decode:
+  // first paint never pays for it. Decodes run through FlashRaw's own worker
+  // pool; aborts ride the caller's AbortSignal.
+  let rawPoolPromise = null;
+  function rawPool() {
+    if (!rawPoolPromise) {
+      rawPoolPromise = import(new URL('flashraw/worker.browser.js', document.baseURI).href)
+        .then((m) => m.createWorkerPool({
+          size: 2,
+          init: { baseUrl: new URL('flashraw/', document.baseURI).href },
+        }));
+      rawPoolPromise.catch(() => { rawPoolPromise = null; }); // retry on the next decode after a load failure
+    }
+    return rawPoolPromise;
+  }
+
+  // Decode-call accounting for the BDD suite and debugging (abort coverage).
+  const rawStats = { started: 0, done: 0, aborted: 0 };
+  // A stall hook the RAW scenarios set (ms) to hold decodeRaw before the pool
+  // call; the abort is then observable deterministically.
+  let stallDecode = 0;
+
+  function stall(signal) {
+    if (!stallDecode) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(resolve, stallDecode);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(t);
+        reject(signal.reason || new DOMException('aborted', 'AbortError'));
+      }, { once: true });
+    });
+  }
+
+  const isAbort = (e) => (e && (e.name === 'AbortError' || e.name === 'ClosedError' || e.kind === 'Cancelled' || e.kind === 'Closed'));
+
+  // file: a photo's file name (looked up in the open roll), or a File/Blob
+  // with the RAW bytes directly. Returns a full-resolution canvas of rgba8
+  // pixels, ready for renderLook. No format side path: callers treat the
+  // result exactly like a decoded JPG bitmap.
+  async function decodeRaw(file, { signal } = {}) {
+    rawStats.started++;
+    try {
+      await stall(signal);
+      let input = file;
+      if (typeof file === 'string') {
+        const src = roll && roll.files.get(file);
+        if (!src) throw new Error('Not in this roll: ' + file);
+        input = src.getFile ? await src.getFile() : src;
+      }
+      const pool = await rawPool();
+      const frame = await pool.decode(input, { output: 'rgba8', signal });
+      const canvas = document.createElement('canvas');
+      canvas.width = frame.width;
+      canvas.height = frame.height;
+      canvas.getContext('2d').putImageData(new ImageData(frame.data, frame.width, frame.height), 0, 0);
+      rawStats.done++;
+      return canvas;
+    } catch (e) {
+      if (isAbort(e)) rawStats.aborted++;
+      throw e;
+    }
+  }
+
+  // The embedded preview of a RAW file as JPEG bytes, decoded to nothing
+  // (zero-copy from the container), or null when the file carries none.
+  async function rawPreview(name, { signal } = {}) {
+    let input = name;
+    if (typeof name === 'string') {
+      const src = roll && roll.files.get(name);
+      if (!src) throw new Error('Not in this roll: ' + name);
+      input = src.getFile ? await src.getFile() : src;
+    }
+    const pool = await rawPool();
+    const prev = await pool.extractPreview(input, { signal });
+    return prev && prev.mimeType === 'image/jpeg' ? prev.data : null;
+  }
+
+  // Capture date straight from RAW metadata (RAW has no JPEG EXIF to read),
+  // or null when the file carries none.
+  async function rawDate(name, { signal } = {}) {
+    let input = name;
+    if (typeof name === 'string') {
+      const src = roll && roll.files.get(name);
+      if (!src) throw new Error('Not in this roll: ' + name);
+      input = src.getFile ? await src.getFile() : src;
+    }
+    const pool = await rawPool();
+    const meta = await pool.readMetadata(input, { signal });
+    return meta && meta.captureTime ? meta.captureTime : null;
   }
 
   const api = {
@@ -241,9 +337,16 @@
     },
 
     openOutput: async () => {},
-    // test helpers
+    // test hooks and RAW surface
     fromFiles,
     fromDirHandle,
+    decodeRaw,
+    rawPreview,
+    rawDate,
+    isRaw: (name) => RAW.test(name),
+    _rawStats: rawStats,
+    get _stallDecode() { return stallDecode; },
+    set _stallDecode(ms) { stallDecode = ms; },
   };
   window.api = api;
 })();

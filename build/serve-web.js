@@ -6,7 +6,7 @@ const path = require('path');
 
 const root = path.join(__dirname, '..', 'web-dist');
 const port = Number(process.env.PORT) || 5178;
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm' };
 
 http.createServer((req, res) => {
   const rel = decodeURIComponent(req.url.split('?')[0]);

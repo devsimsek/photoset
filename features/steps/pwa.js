@@ -6,8 +6,11 @@ const { Given, When, Then, After } = createBdd();
 // Playwright blocks service workers by default and playwright.config.mjs is
 // owned elsewhere, so PWA scenarios open their own browser context with
 // serviceWorkers: 'allow' instead of the shared page fixture. The context is
-// closed in the After hook below.
+// closed in the After hook below. RAW scenarios (raw.js) reuse the same step
+// phrases and reach the context through swContext().
 let sw = null; // { context, page } for the current scenario
+
+export function swContext() { return sw; }
 
 async function openWithServiceWorkers(browser) {
   if (sw) { await sw.context.close(); sw = null; }
