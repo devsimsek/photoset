@@ -113,6 +113,38 @@ develop skips them. Loading a completely different folder replaces the
 remembered roll instead of merging the two; nothing flagged survives that
 replacement.
 
+## On your phone
+
+The darkroom is laid out for a phone first: at a narrow window the three
+panels stack in a single column (preview, contact sheet, controls), and the
+core loop - load a roll, pick shots, develop, save - all works at a 375 px
+wide screen with no sideways scrolling.
+
+- Every control you touch gives a thumb a fair target: buttons, the develop
+  and save controls, the slider rows, the pick circles and the form fields
+  each offer at least 44 by 44 points. The drawn design stays as it is on a
+  desktop; only the hit areas grow.
+- Loading works by tapping LOAD ROLL or CHOOSE FOLDER; phones pick photos
+  instead of folders (the browser decides).
+- **Paste a photo.** Copy an image anywhere on the device and paste it into
+  the darkroom: it joins the current roll (or starts a new roll called
+  *pasted*). The roll loads JPG photos, so a pasted PNG is re-encoded to JPG
+  through the canvas at paste time, and any other format is refused with a
+  toast naming the format.
+
+## Keyboard
+
+| Key | What it does |
+| --- | --- |
+| ← → or ↑ ↓ | Move the selection to the previous / next shot in the roll. |
+| j / k | Next / previous shot, the same as the arrows. |
+| Space | Pick or unpick the selected shot. |
+| Enter | Develop the selected shot on its own. |
+| Escape | Close the film studio dialog. |
+
+Typing in a text field (film name, the film JSON paste area, the size cap or
+the folder name) never moves the selection.
+
 ## Browser support
 
 | Browser | Loading photos | Saving results |

@@ -139,6 +139,10 @@ button { cursor: pointer; }
   text-transform: none;
 }
 .link:hover { text-decoration: underline; }
+.link { position: relative; }
+/* Text links get a full thumb-sized hit area without moving the layout:
+   the pseudo-element extends the clickable box past the label. */
+.link::after { content: ''; position: absolute; inset: -14px -10px; }
 
 /* ---------- layout ---------- */
 .app {
@@ -655,6 +659,37 @@ select:disabled { opacity: 0.4; }
   .develop { position: sticky; bottom: 0; z-index: 5; box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.45); }
   .stage-bar { gap: 8px; padding: 8px 12px; }
   #compareBtn { padding: 7px 10px; letter-spacing: 0.06em; }
+
+  /* ---------- touch targets: at least 44x44, hit area before visuals ---------- */
+  .btn { min-height: 44px; }
+  .icon-btn { width: 44px; height: 44px; }
+  /* The slider's thumb keeps its size; the whole 44px-tall input drags. */
+  input[type='range'] { height: 44px; }
+  select, input[type='text'], input[type='number'] { min-height: 44px; }
+  input[type='color'] { width: 44px; height: 44px; }
+  /* The switch track keeps its drawn size inside a 44px label. */
+  .switch { width: 44px; height: 44px; }
+  .switch span { inset: auto; left: 50%; top: 50%; width: 36px; height: 20px; transform: translate(-50%, -50%); }
+  /* The pick circle stays 22px on screen inside a 44px button. */
+  .ri-pick { width: 44px; height: 44px; position: relative; border: 0; background: none; }
+  .ri-pick::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1.5px solid var(--faint);
+  }
+  .ri-pick:hover::before { border-color: var(--orange); }
+  .roll-item.picked .ri-pick { background: none; border-color: transparent; box-shadow: none; }
+  .roll-item.picked .ri-pick::before {
+    background: var(--orange);
+    border-color: var(--orange);
+    box-shadow: 0 0 8px rgba(255, 122, 26, 0.45);
+  }
 }
 @media (max-width: 520px) {
   .wordmark { font-size: 16px; }
