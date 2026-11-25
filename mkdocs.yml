@@ -1,0 +1,39 @@
+site_name: Photoset Darkroom
+site_description: Retro film looks, film strips and batch JPG compression. Everything runs in your browser; photos never leave the device.
+site_author: devsimsek
+site_url: https://devsimsek.github.io/photoset/docs/
+
+repo_name: devsimsek/photoset
+repo_url: https://github.com/devsimsek/photoset
+
+docs_dir: docs
+# The Pages workflow builds the docs into web-dist/docs/, so the docs site lives
+# under the app at /docs/. Validation builds use `mkdocs build -d .tmp/mkdocs-site`.
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: amber
+    accent: orange
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+
+nav:
+  - Home: index.md
+  - User Guide: user-guide.md
+  - The Laws: laws.md
+  - Self-Hosting: self-hosting.md
+  - Contributing: contributing.md
+  - AI Disclosure: ai.md
+  - Internals:
+      - Architecture: internals/architecture.md
+      - The Engine: internals/engine.md
+      - Naming: internals/naming.md
+  - ADRs:
+      - ADR 0001 - Web-only scope: adr/0001-web-only-scope.md
+      - ADR 0002 - Gherkin BDD contract: adr/0002-gherkin-bdd-contract.md
+      - ADR 0003 - Single Pages site: adr/0003-single-pages-site.md
