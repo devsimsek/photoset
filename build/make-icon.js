@@ -75,18 +75,48 @@ function chunk(type, data) {
   const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
   return Buffer.concat([len, td, c]);
 }
-const ihdr = Buffer.alloc(13);
-ihdr.writeUInt32BE(S, 0); ihdr.writeUInt32BE(S, 4);
-ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-const raw = Buffer.alloc((S * 4 + 1) * S);
-for (let y = 0; y < S; y++) { raw[y * (S * 4 + 1)] = 0; px.copy(raw, y * (S * 4 + 1) + 1, y * S * 4, (y + 1) * S * 4); }
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  chunk('IHDR', ihdr),
-  chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
-  chunk('IEND', Buffer.alloc(0)),
-]);
+function encodePng(px) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(S, 0); ihdr.writeUInt32BE(S, 4);
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const raw = Buffer.alloc((S * 4 + 1) * S);
+  for (let y = 0; y < S; y++) { raw[y * (S * 4 + 1)] = 0; px.copy(raw, y * (S * 4 + 1) + 1, y * S * 4, (y + 1) * S * 4); }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 const root = path.join(__dirname, '..');
-fs.writeFileSync(path.join(root, 'src', 'renderer', 'icon.png'), png); // favicon / web app icon
-console.log('icon written (' + png.length + ' bytes)');
+fs.writeFileSync(path.join(root, 'src', 'renderer', 'icon.png'), encodePng(px)); // favicon / web app icon
+
+// Maskable variant: the camera art shrunk into the safe zone (75% box keeps all
+// art inside the centre circle a maskable launcher may crop to) over an opaque
+// background matching the app.
+const SAFE = 0.75;
+const pxM = Buffer.alloc(S * S * 4);
+const bg = hex('#15120e');
+for (let y = 0; y < S; y++) {
+  for (let x = 0; x < S; x++) {
+    let r = 0, g = 0, b = 0, a = 0;
+    for (let j = 0; j < SS; j++) {
+      for (let i = 0; i < SS; i++) {
+        const u = (x + (i + 0.5) / SS) / S, v = (y + (j + 0.5) / SS) / S;
+        const s = sample((u - 0.5) / SAFE + 0.5, (v - 0.5) / SAFE + 0.5);
+        r += s[0] * s[3]; g += s[1] * s[3]; b += s[2] * s[3]; a += s[3];
+      }
+    }
+    const o = (y * S + x) * 4;
+    const cov = a / (SS * SS);
+    if (cov === 0) { pxM[o] = bg[0]; pxM[o + 1] = bg[1]; pxM[o + 2] = bg[2]; pxM[o + 3] = 255; continue; }
+    const ar = a ? r / a : 0, ag = a ? g / a : 0, ab = a ? b / a : 0;
+    pxM[o] = ar * cov + bg[0] * (1 - cov);
+    pxM[o + 1] = ag * cov + bg[1] * (1 - cov);
+    pxM[o + 2] = ab * cov + bg[2] * (1 - cov);
+    pxM[o + 3] = 255;
+  }
+}
+fs.writeFileSync(path.join(root, 'src', 'renderer', 'icon-maskable.png'), encodePng(pxM)); // manifest maskable icon
+console.log('icons written (icon ' + px.length + 'px, maskable ' + pxM.length + 'px)');

@@ -96,7 +96,18 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 | Firefox, Safari, others | Pick or drop a folder or photos | Downloads: one JPG, or a `.zip` for several |
 | Phones | Pick photos | Downloads |
 
-## Offline and the service worker
+## Install and offline
+
+Install on the desktop (Chrome/Edge): the install icon in the address bar, or
+the browser menu's "Install Photoset Darkroom". On Android the browser offers
+"Add to Home screen"; on iOS use Share, then "Add to Home Screen". The
+installed app runs standalone, without browser chrome, and uses the dark
+theme colour for its window and splash. The manifest declares both a regular
+512 icon and a maskable variant (the camera art sits inside the safe zone, so
+Android's circle crop keeps it whole), and the home-screen icon is the same
+camera mark via the apple-touch-icon link.
+
+### Offline behaviour
 
 After your first visit, the app's shell (page, scripts, styles, icon) is
 precached by a service worker. Reload the page with the network gone and the

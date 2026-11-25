@@ -6,7 +6,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const src = path.join(root, 'src', 'renderer');
 const out = path.join(root, 'web-dist');
-const FILES = ['index.html', 'styles.css', 'engine.js', 'exif.js', 'web-api.js', 'app.js', 'icon.png', 'manifest.webmanifest', 'sw.js'];
+const FILES = ['index.html', 'styles.css', 'engine.js', 'exif.js', 'web-api.js', 'app.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest', 'sw.js'];
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
@@ -21,7 +21,7 @@ for (const f of FILES) {
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const stamp = Date.now().toString(36);
 const swPath = path.join(out, 'sw.js');
-fs.writeFileSync(swPath, fs.readFileSync(swPath, 'utf8').replace('__BUILD_VERSION__', `${pkg.version}-${stamp}`));
+fs.writeFileSync(swPath, fs.readFileSync(swPath, 'utf8').replaceAll('__BUILD_VERSION__', `${pkg.version}-${stamp}`));
 fs.writeFileSync(path.join(out, '.nojekyll'), ''); // serve files as-is
 const kb = FILES.reduce((a, f) => a + fs.statSync(path.join(out, f)).size, 0) / 1024;
 console.log(`web build ready in web-dist/ (${FILES.length} files, ${Math.round(kb)} KB)`);

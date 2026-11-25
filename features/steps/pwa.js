@@ -94,6 +94,46 @@ function swPageStatsVersion(page) {
   return swPageStats(page).then((s) => s.version);
 }
 
+// ---------- installable manifest (PS-18) ----------
+
+async function fetchManifest(page) {
+  const res = await page.request.get('/manifest.webmanifest');
+  if (!res.ok()) throw new Error(`manifest fetch failed: HTTP ${res.status()}`);
+  return JSON.parse(await res.text());
+}
+
+Then('the manifest at the app root parses with name {string} and display {string}', async ({ page }, name, display) => {
+  const m = await fetchManifest(page);
+  if (m.name !== name) throw new Error(`expected manifest name ${JSON.stringify(name)}, got ${JSON.stringify(m.name)}`);
+  if (m.short_name !== 'Photoset') throw new Error(`expected short_name "Photoset", got ${JSON.stringify(m.short_name)}`);
+  if (m.display !== display) throw new Error(`expected display ${JSON.stringify(display)}, got ${JSON.stringify(m.display)}`);
+  const resolved = new URL(m.start_url, 'http://deploy-base/photoset/');
+  if (!resolved.href.startsWith('http://deploy-base/photoset/')) {
+    throw new Error(`start_url ${JSON.stringify(m.start_url)} does not resolve inside /photoset/ (got ${resolved.href})`);
+  }
+});
+
+Then('the icons list contains a 512x512 {string} icon and a 512x512 {string} icon', async ({ page }, purposeA, purposeB) => {
+  const m = await fetchManifest(page);
+  const icons = m.icons || [];
+  const find = (purpose) => icons.find((i) => (i.sizes || '').includes('512x512') && (i.purpose || '').split(' ').includes(purpose));
+  for (const purpose of [purposeA, purposeB]) {
+    const icon = find(purpose);
+    if (!icon) throw new Error(`no 512x512 ${purpose} icon in the manifest (icons: ${JSON.stringify(icons)})`);
+    const res = await page.request.get(icon.src);
+    if (!res.ok()) throw new Error(`icon ${icon.src} for ${purpose} does not fetch: HTTP ${res.status()}`);
+  }
+});
+
+Then('a service worker registration exists after load', async () => {
+  const page = sw.page;
+  const ok = await page.evaluate(async () => {
+    const r = await navigator.serviceWorker.getRegistration();
+    return !!(r && r.active);
+  });
+  if (!ok) throw new Error('no active service worker registration after load');
+});
+
 After(async () => {
   if (sw) { await sw.context.close(); sw = null; }
   if (stashedSw) {

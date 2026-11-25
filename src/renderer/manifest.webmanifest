@@ -1,6 +1,6 @@
 {
   "name": "Photoset Darkroom",
-  "short_name": "Darkroom",
+  "short_name": "Photoset",
   "description": "Retro film looks, film strips and batch JPG compression, right in your browser.",
   "start_url": ".",
   "scope": ".",
@@ -8,6 +8,7 @@
   "background_color": "#15120e",
   "theme_color": "#15120e",
   "icons": [
-    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

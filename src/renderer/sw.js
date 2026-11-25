@@ -1,15 +1,17 @@
 // Photoset Darkroom service worker. Plain JS, no dependencies.
-// build/build-web.js replaces __BUILD_VERSION__ with the build version at copy
-// time, so every build gets its own versioned precache.
+// build/build-web.js injects the build version into the VERSION constant at
+// copy time, so every build gets its own versioned precache.
 'use strict';
 
 const VERSION = '__BUILD_VERSION__';
 const CACHE = 'photoset-shell-' + VERSION;
 
 // The whole build shell; keep in sync with FILES in build/build-web.js.
+// Note (ADR 0004): the RAW decoder wasm joins this precache in the RAW wave,
+// deliberately outside the 150 KB ratchet until then.
 const SHELL = [
   'index.html', 'styles.css', 'app.js', 'engine.js', 'web-api.js',
-  'exif.js', 'icon.png', 'manifest.webmanifest',
+  'exif.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
 ];
 
 // Fetch-handler instrumentation for the BDD suite and debugging: the worker
