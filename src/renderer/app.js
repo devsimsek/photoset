@@ -411,14 +411,30 @@
   async function loadRoll(roll) {
     if (!roll) return;
     if (!roll.files.length) { toast(`No .jpg files found in “${roll.name}”`); return; }
+    // Relink: a remembered roll re-attaches when at least half of its shots are
+    // present in the picked folder by exact file name. The roll name is only a hint.
+    const meta = rememberedMeta();
+    const hits = meta ? roll.files.filter((f) => meta.photos.some((m) => m.name === f.name)) : null;
+    const relink = hits && hits.length > 0 && hits.length * 2 >= meta.photos.length ? meta : null;
     state.rollToken++;
     for (const p of state.photos) if (p.thumb) URL.revokeObjectURL(p.thumb);
     previewCache.clear();
     state.roll = roll;
-    state.photos = roll.files.map((f, i) => ({ ...f, idx: i, w: 0, h: 0, date: null, thumb: null, out: null }));
-    state.picks = [];
-    state.stripHigh = 0;
-    state.perPhoto = {};
+    state.photos = roll.files.map((f, i) => {
+      const m = relink && meta.photos.find((x) => x.name === f.name);
+      return { ...f, idx: i, w: 0, h: 0, date: m && m.date ? new Date(m.date) : null, thumb: null, out: null };
+    });
+    if (relink) {
+      const byName = new Map(state.photos.map((p) => [p.name, p.idx]));
+      state.picks = (relink.picks || []).map((n) => byName.get(n)).filter((i) => i != null);
+      state.stripHigh = relink.stripHigh || 0;
+      state.perPhoto = relink.perPhoto || {};
+      toast(`Roll “${relink.name}” restored · picks and strip numbering are back`);
+    } else {
+      state.picks = [];
+      state.stripHigh = 0;
+      state.perPhoto = {};
+    }
     state.lastOut = null;
     $('#rememberBanner').hidden = true;
     persistRoll();
@@ -802,6 +818,10 @@
     clearTimeout(estTimer);
     estSeq++;
     let before = 0, after = 0, done = 0;
+    // Strips continue the roll's numbering: the remembered high-water mark is
+    // where the next batch starts, and whatever the output actually accepts
+    // (collision bumps included) moves the mark forward.
+    const stripBase = state.stripHigh || 0;
     try {
       if (api.beginBatch) await api.beginBatch(folder); // first await: still inside the click, so the browser may ask for folder access
       const fmt = EXT[s.format] ? s.format : 'image/jpeg';
@@ -810,7 +830,7 @@
         let canvas, group, name;
         if (strip) {
           ({ canvas, group } = await renderStripFull(j, s));
-          name = `strip_${String(j + 1).padStart(3, '0')}.${ext}`;
+          name = `strip_${String(stripBase + j + 1).padStart(3, '0')}.${ext}`;
         } else {
           const p = state.photos[j];
           group = [p];
@@ -821,7 +841,12 @@
         canvas.width = canvas.height = 0;
         let bytes = await blob.arrayBuffer();
         if (s.keepExif && fmt === 'image/jpeg') bytes = Exif.stamp(new Uint8Array(bytes), group[0].date).buffer;
-        await api.writeFile(folder, name, bytes, fmt);
+        const written = await api.writeFile(folder, name, bytes, fmt);
+        const stripNum = String(written).match(/strip_(\d+)/);
+        if (stripNum) {
+          state.stripHigh = Math.max(state.stripHigh, +stripNum[1]);
+          persistRoll();
+        }
         before += group.reduce((a, q) => a + q.size, 0);
         after += blob.size;
         done++;

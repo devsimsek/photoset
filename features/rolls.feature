@@ -28,3 +28,25 @@ Feature: Rolls are remembered without pixels
     And the photographer marks "dock.jpg" and "forest.jpg" as picked
     Then the roll remembers "lake.jpg", "dock.jpg" and "forest.jpg"
     And storage holds no image data and stays tiny
+
+  Scenario: Re-picking the same folder restores picks
+    Given the photographer loaded a roll "trip" with "dock.jpg", "forest.jpg" and "lake.jpg"
+    And the photographer marks "dock.jpg" as picked
+    When the darkroom is reopened
+    And the photographer re-picks the folder "trip" with "dock.jpg", "forest.jpg" and "lake.jpg"
+    Then the roll is back with real pixels
+    And "dock.jpg" is still picked
+
+  Scenario: Strip numbering continues from the remembered high-water mark
+    Given a remembered roll "trip" whose shots "dock.jpg", "fern.jpg", "lake.jpg", "mist.jpg", "pier.jpg" and "reed.jpg" reached "strip_004"
+    When the photographer re-picks the folder "trip" with "dock.jpg", "fern.jpg", "lake.jpg", "mist.jpg", "pier.jpg" and "reed.jpg"
+    And the photographer develops the whole roll as strips
+    Then the strips are named "strip_005.jpg" and "strip_006.jpg"
+
+  Scenario: A partial folder still relinks the present shots
+    Given the photographer loaded a roll "trip" with "dock.jpg", "fern.jpg", "lake.jpg" and "mist.jpg"
+    And the photographer marks "fern.jpg" and "mist.jpg" as picked
+    When the darkroom is reopened
+    And the photographer re-picks the folder "trip" with "dock.jpg" and "mist.jpg"
+    Then the roll is back with real pixels
+    And "mist.jpg" is still picked

@@ -3,7 +3,9 @@
 // read it back through the page, the same way the app does on boot.
 import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
-import { quoted, loadRoll, openApp } from './helpers.js';
+import { readFileSync } from 'node:fs';
+import { quoted, loadRoll, openApp, zipEntries } from './helpers.js';
+import { results } from './results.js';
 
 const { Given, When, Then } = createBdd();
 
@@ -80,4 +82,57 @@ Then('storage holds no image data and stays tiny', async ({ page }) => {
     return bytes;
   });
   expect(total).toBeLessThan(5000);
+});
+
+// ---------- relink (PS-20) ----------
+
+// Seeds a remembered roll straight into storage, then reboots so the boot path
+// sees it. mtime is a fixed stamp; sizes are fake but tiny.
+Given(/^a remembered roll "(.+?)" whose shots (.+) reached "(strip_\d+)"$/, async ({ page }, rollName, list, lastStrip) => {
+  await openApp(page);
+  await page.evaluate(({ rollName, names, lastStrip }) => {
+    localStorage.setItem('darkroom.roll', JSON.stringify({
+      schema: 1, name: rollName, savedAt: Date.now(),
+      photos: names.map((n) => ({ name: n, size: 1234, mtime: 1700000000000 })),
+      picks: [], perPhoto: {},
+      stripHigh: Number(lastStrip.match(/\d+/)[0]),
+    }));
+  }, { rollName, names: quoted(list), lastStrip });
+  await openApp(page);
+});
+
+When(/^the photographer re-picks the folder "(.+?)" with (.+)$/, async ({ page }, folder, list) => {
+  await loadRoll(page, quoted(list).map((name) => ({ name, rel: `${folder}/${name}` })), folder);
+});
+
+Then(/^the roll is back with real pixels$/, async ({ page }) => {
+  const st = await page.evaluate(() => ({
+    remembered: window.__darkroom.state.photos.some((p) => p.remembered),
+    bannerHidden: document.querySelector('#rememberBanner').hidden,
+  }));
+  expect(st.remembered).toBe(false);
+  expect(st.bannerHidden).toBe(true);
+});
+
+Then(/^"(.+?)" is still picked$/, async ({ page }, name) => {
+  const picked = await page.evaluate((n) => {
+    const st = window.__darkroom.state;
+    const i = st.photos.findIndex((p) => p.name === n);
+    return i >= 0 && st.picks.includes(i);
+  }, name);
+  expect(picked).toBe(true);
+});
+
+When(/^the photographer develops the whole roll as strips$/, async ({ page }) => {
+  results.downloads = [];
+  await page.selectOption('select[data-k="mode"]', 'strip');
+  const dl = page.waitForEvent('download');
+  await page.evaluate(() => window.__darkroom.develop(false));
+  results.downloads.push(await dl);
+});
+
+Then(/^the strips are named (.+)$/, async ({}, list) => {
+  const buf = readFileSync(await results.downloads[0].path());
+  const names = zipEntries(buf).map((e) => e.name);
+  expect(names.sort()).toEqual(quoted(list).sort());
 });

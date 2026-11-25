@@ -30,6 +30,9 @@ pixel data.
 - **A remembered roll shows names without pixels.** After a reload, the contact
   sheet lists the remembered shots as placeholders until the folder is re-picked;
   the app never pretends pixels came back on their own.
+- **Re-picking the folder relinks the roll.** Matching happens by exact file name;
+  when at least half the remembered shots are present, picks restore and strip
+  numbering continues past the remembered high-water mark.
 
 ## Originals are never touched
 

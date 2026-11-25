@@ -102,10 +102,13 @@ gone and a RE-PICK THE FOLDER button. Nothing is faked: the remembered shots hav
 no thumbnails and cannot be developed until the folder is back.
 
 Re-pick the same folder and the roll restores: matching happens by exact file
-name, your picks come back, and strip numbering continues where the roll left
-off (see below). Files the folder no longer contains stay listed and flagged,
-never silently dropped. Loading a completely different folder replaces the
-remembered roll instead of merging the two.
+name, and it takes effect when at least half the remembered shots are present in
+the folder, so a partially re-copied folder still relinks the shots that are
+there. Your picks come back and strip numbering continues where the roll left
+off: a roll whose last strip was strip_004 starts the next batch at strip_005.
+Files the folder no longer contains stay listed and flagged, never silently
+dropped. Loading a completely different folder replaces the remembered roll
+instead of merging the two.
 
 ## Browser support
 
