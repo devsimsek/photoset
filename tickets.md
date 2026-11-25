@@ -12,7 +12,16 @@ paths and never commit outside them.
 | PS-4 | Docs + ADRs | Done | `tickets.md`, `docs/`, `mkdocs.yml` | Commit `7d7603e`. MkDocs build zero errors incl. `--strict`. |
 | PS-5 | LICENSE + README rewrite | Done | `LICENSE`, `README.md` | Commit `0ec45f0`. No desktop mentions remain. |
 | PS-6 | AGENTS.md | Done (on disk, no commit) | `AGENTS.md` | Written; gitignored by owner policy, like agent instruction files in other repos. |
-| PS-7 | Git repo to GitHub, Pages arming, tag v0.0.1 | In Progress | GitHub repo settings, Pages, tags | `gh` cli per owner instruction: create repo, push, arm Pages, verify the workflow run, tag `v0.0.1`. |
+| PS-7 | Git repo to GitHub, Pages arming, tag v0.0.1 | Done | GitHub repo settings, Pages, tags | `gh` cli per owner instruction. Repo `devsimsek/photoset`, Pages armed (build_type=workflow), first deploy fixed (`ed5ab4c`, docs path bug) and verified: app 200, /docs/ 200. Tag `v0.0.1` pushed. |
+
+## Wave 2, v0.1.0: export options
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-8 | Multi-format encode: PNG and WebP alongside JPG | Open | `engine.js`, features/ | |
+| PS-9 | Output panel: per-batch format, quality, size cap | Open | `app.js`, `index.html`, `styles.css` | |
+| PS-10 | RAW decoder spike, ADR 0004 | Open (research) | `docs/adr/0004-*.md`, research notes | |
+| PS-11 | EXIF re-injector: keep EXIF option, default off | Open | new module, `app.js`, `index.html`, `build-web.js` FILES list | |
 
 ## Future waves (planned, not ticketed yet)
 
