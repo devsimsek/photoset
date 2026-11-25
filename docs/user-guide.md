@@ -106,9 +106,12 @@ name, and it takes effect when at least half the remembered shots are present in
 the folder, so a partially re-copied folder still relinks the shots that are
 there. Your picks come back and strip numbering continues where the roll left
 off: a roll whose last strip was strip_004 starts the next batch at strip_005.
-Files the folder no longer contains stay listed and flagged, never silently
-dropped. Loading a completely different folder replaces the remembered roll
-instead of merging the two.
+
+Shots the folder no longer contains are not dropped: they stay in the contact
+sheet with an orange MISSING badge, marked "missing from folder", and a batch
+develop skips them. Loading a completely different folder replaces the
+remembered roll instead of merging the two; nothing flagged survives that
+replacement.
 
 ## Browser support
 

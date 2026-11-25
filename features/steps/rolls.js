@@ -136,3 +136,40 @@ Then(/^the strips are named (.+)$/, async ({}, list) => {
   const names = zipEntries(buf).map((e) => e.name);
   expect(names.sort()).toEqual(quoted(list).sort());
 });
+
+// ---------- missing-file flags (PS-21) ----------
+
+Then(/^"(.+?)" stays listed with the roll$/, async ({ page }, name) => {
+  const listed = await page.evaluate((n) => window.__darkroom.state.photos.some((p) => p.name === n), name);
+  expect(listed).toBe(true);
+});
+
+Then(/^"(.+?)" is flagged as missing from the folder$/, async ({ page }, name) => {
+  const st = await page.evaluate((n) => {
+    const p = window.__darkroom.state.photos.find((q) => q.name === n);
+    return p ? { missing: !!p.missing } : null;
+  }, name);
+  expect(st).not.toBeNull();
+  expect(st.missing).toBe(true);
+  const item = page.locator('.roll-item.missing', { hasText: name });
+  await expect(item).toHaveCount(1);
+  expect(await item.getAttribute('title')).toBe('missing from folder');
+});
+
+Then(/^"(.+?)" is not picked$/, async ({ page }, name) => {
+  const picked = await page.evaluate((n) => {
+    const st = window.__darkroom.state;
+    const i = st.photos.findIndex((p) => p.name === n);
+    return i >= 0 && st.picks.includes(i);
+  }, name);
+  expect(picked).toBe(false);
+});
+
+Then('no shot is flagged as missing', async ({ page }) => {
+  await expect(page.locator('.roll-item.missing')).toHaveCount(0);
+});
+
+Then(/^the remembered roll is now "(.+?)"$/, async ({ page }, name) => {
+  const meta = await metaOf(page);
+  expect(meta.name).toBe(name);
+});

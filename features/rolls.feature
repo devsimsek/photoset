@@ -50,3 +50,32 @@ Feature: Rolls are remembered without pixels
     And the photographer re-picks the folder "trip" with "dock.jpg" and "mist.jpg"
     Then the roll is back with real pixels
     And "mist.jpg" is still picked
+
+  Scenario: A shot missing from the re-picked folder is flagged, not dropped
+    Given the photographer loaded a roll "trip" with "dock.jpg", "fern.jpg", "lake.jpg" and "mist.jpg"
+    And the photographer marks "fern.jpg" and "mist.jpg" as picked
+    When the darkroom is reopened
+    And the photographer re-picks the folder "trip" with "dock.jpg" and "mist.jpg"
+    Then "fern.jpg" stays listed with the roll
+    And "fern.jpg" is flagged as missing from the folder
+    And "fern.jpg" is not picked
+    And "mist.jpg" is still picked
+
+  Scenario: The batch skips flagged shots
+    Given the photographer loaded a roll "trip" with "dock.jpg", "fern.jpg", "lake.jpg" and "mist.jpg"
+    When the darkroom is reopened
+    And the photographer re-picks the folder "trip" with "dock.jpg" and "mist.jpg"
+    Then "fern.jpg" is flagged as missing from the folder
+    When the photographer develops the whole roll
+    Then two results are produced
+    And every result is a developed JPEG
+
+  Scenario: Re-picking a different folder replaces the remembered roll
+    Given the photographer loaded a roll "trip" with "dock.jpg", "fern.jpg", "lake.jpg" and "mist.jpg"
+    When the darkroom is reopened
+    And the photographer re-picks the folder "trip" with "dock.jpg" and "mist.jpg"
+    Then "fern.jpg" is flagged as missing from the folder
+    When the photographer re-picks the folder "honeymoon" with "beach.jpg" and "party.jpg"
+    Then the roll contains exactly "beach.jpg" and "party.jpg"
+    And the remembered roll is now "honeymoon"
+    And no shot is flagged as missing

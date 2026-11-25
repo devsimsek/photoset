@@ -298,6 +298,9 @@ body.has-picks .roll-item:not(.picked) .ri-meta { opacity: 0.45; }
 .roll-item.remembered { opacity: 0.6; }
 .roll-item.remembered .ri-thumb { background: repeating-linear-gradient(45deg, #1c1712 0 6px, #14100c 6px 12px); }
 .roll-item.remembered .ri-thumb img { display: none; }
+.roll-item.missing { opacity: 0.5; }
+.roll-item.missing .ri-thumb { background: repeating-linear-gradient(45deg, #201014 0 6px, #150a0c 6px 12px); }
+.ri-size .missing-badge { color: #ff9a6a; font-weight: 700; letter-spacing: 0.08em; }
 .canister { display: inline-flex; align-items: center; position: relative; transform: rotate(-8deg); }
 .canister .cap { width: 16px; height: 108px; background: linear-gradient(90deg, #555, #bbb 40%, #666); border-radius: 3px; }
 .canister .can-body {

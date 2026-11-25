@@ -271,8 +271,12 @@
   const safeFolder = (v) => String(v || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().replace(/^\.+$/, '') || 'developed';
   const stripAspect = (s) => (s.aspect === 'orig' ? '3:2' : s.aspect);
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
-  // the shots that get developed / put on strips: picks in pick order, or the whole roll
-  const sequence = () => (state.picks.length ? state.picks.map((i) => state.photos[i]) : state.photos);
+  // the shots that get developed / put on strips: picks in pick order, or the whole roll.
+  // Shots flagged as missing from the folder have no pixels and are skipped.
+  const sequence = () => {
+    const base = state.picks.length ? state.picks.map((i) => state.photos[i]) : state.photos;
+    return base.filter((p) => p && !p.missing);
+  };
   function stripGroups(n) {
     const seq = sequence(), out = [];
     for (let i = 0; i < seq.length; i += n) out.push(seq.slice(i, i + n));
@@ -429,6 +433,17 @@
       state.picks = (relink.picks || []).map((n) => byName.get(n)).filter((i) => i != null);
       state.stripHigh = relink.stripHigh || 0;
       state.perPhoto = relink.perPhoto || {};
+      // Remembered names the folder no longer holds stay listed, flagged as
+      // missing; they are never silently dropped.
+      const seen = new Set(state.photos.map((p) => p.name));
+      for (const m of meta.photos) {
+        if (seen.has(m.name)) continue;
+        state.photos.push({
+          name: m.name, size: m.size || 0, mtime: m.mtime || 0,
+          date: m.date ? new Date(m.date) : null,
+          idx: state.photos.length, w: 0, h: 0, thumb: null, out: null, missing: true,
+        });
+      }
       toast(`Roll “${relink.name}” restored · picks and strip numbering are back`);
     } else {
       state.picks = [];
@@ -450,7 +465,7 @@
 
   // ---------- picks ----------
   function togglePick(i) {
-    if (state.busy || !state.photos[i] || state.photos[i].remembered) return;
+    if (state.busy || !state.photos[i] || state.photos[i].remembered || state.photos[i].missing) return;
     const k = state.picks.indexOf(i);
     if (k >= 0) state.picks.splice(k, 1);
     else state.picks.push(i);
@@ -591,7 +606,7 @@
   async function genThumbs(token) {
     for (const p of state.photos) {
       if (token !== state.rollToken) return;
-      if (p.thumb || p.remembered) continue;
+      if (p.thumb || p.remembered || p.missing) continue;
       try {
         const bmp = await decode(p);
         if (!previewCache.has(p.name) && previewCache.size < 24) cacheSource(p, bmp);
@@ -648,6 +663,7 @@
     parts.push(fmtBytes(p.size));
     if (p.date) parts.push(p.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }));
     if (p.remembered) parts.push('remembered · no pixels · re-pick the folder');
+    if (p.missing) parts.push('missing from folder · skipped by the batch');
     if (state.s.mode === 'strip') {
       const g = groupOf(p, state.s.stripN);
       parts.push(g >= 0 ? `strip ${g + 1} of ${stripGroups(state.s.stripN).length}` : 'not on a strip');
@@ -681,7 +697,7 @@
   }
   async function renderPreview() {
     const p = state.photos[state.sel];
-    if (!p || p.remembered) return;
+    if (!p || p.remembered || p.missing) return;
     const s = state.s;
     let out;
     const inStrip = s.mode !== 'strip' || groupOf(p, s.stripN) >= 0;
@@ -809,6 +825,7 @@
     const s = { ...state.s }, folder = safeFolder(s.folder);
     const strip = s.mode === 'strip';
     const cur = state.photos[state.sel];
+    if (onlyCurrent && cur && cur.missing) { toast('That shot is missing from the folder, so there is nothing to develop.'); return; }
     const jobs = strip
       ? (onlyCurrent ? [groupOf(cur, s.stripN)].filter((g) => g >= 0) : stripGroups(s.stripN).map((_, i) => i))
       : (onlyCurrent ? [state.sel] : sequence().map((p) => p.idx));

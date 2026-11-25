@@ -33,6 +33,10 @@ pixel data.
 - **Re-picking the folder relinks the roll.** Matching happens by exact file name;
   when at least half the remembered shots are present, picks restore and strip
   numbering continues past the remembered high-water mark.
+- **Missing shots stay visible.** Remembered names absent from the re-picked
+  folder are flagged in the photo list, never silently dropped, and the batch
+  develop skips them. A fresh load of a different folder replaces the remembered
+  roll instead of merging.
 
 ## Originals are never touched
 
