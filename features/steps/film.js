@@ -1,9 +1,10 @@
-// Film studio scenarios: export, import and validation of schema v1 films.
+// Film studio scenarios: export, import, validation and the film library.
 // Everything runs through the real surfaces: the film dialog, the export
 // button's download, and window.__darkroom for state reads.
 import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { loadRoll, quoted } from './helpers.js';
 import { results } from './results.js';
 
 const { Given, When, Then } = createBdd();
@@ -130,4 +131,85 @@ Then('the darkroom look is unchanged', async ({ page }) => {
   const s = await page.evaluate(() => window.__darkroom.state.s);
   expect(s.exposure).toBe(results.film.before.exposure);
   expect(s.contrast).toBe(results.film.before.contrast);
+});
+
+// ---------- library ----------
+
+Given(/^the photographer pushes the (\w+) slider to (-?\d+)$/, async ({ page }, k, v) => {
+  await slideTo(page, k, Number(v));
+});
+
+Given(/^the photographer saved the current look as film "(.+?)"(?: iso "(.+?)")?$/,
+  async ({ page }, name, iso) => {
+    await page.click('#saveFilmBtn');
+    await page.fill('#filmName', name);
+    if (iso) await page.fill('#filmIso', iso);
+    await page.click('#filmOk');
+  });
+
+When(/^the photographer renames the film to "(.+?)"$/, async ({ page }, name) => {
+  await page.click('#renameFilmBtn');
+  await page.fill('#filmName', name);
+  await page.click('#filmOk');
+});
+
+When('the photographer saves over the film', async ({ page }) => {
+  await page.click('#saveOverBtn');
+});
+
+When('the photographer deletes the film', async ({ page }) => {
+  await page.click('#deleteFilmBtn');
+});
+
+When('the photographer reloads the darkroom', async ({ page }) => {
+  await page.reload();
+  await page.waitForFunction(() => !!(window.api && window.__darkroom));
+});
+
+When(/^the photographer reloads the darkroom with a roll of (.+)$/, async ({ page }, list) => {
+  await page.reload();
+  await page.waitForFunction(() => !!(window.api && window.__darkroom));
+  await loadRoll(page, quoted(list).map((n) => ({ name: n })), '');
+});
+
+When(/^the photographer pastes a film named "(.+?)"$/, async ({ page }, name) => {
+  const film = await page.evaluate(() => window.__darkroom.exportFilm());
+  film.name = name;
+  await pasteFilm(page, film);
+});
+
+Then(/^the stocks list (?:still )?shows "(.+?)" as a custom film$/, async ({ page }, name) => {
+  const btn = page.locator('.stock.custom', { hasText: name });
+  await expect(btn).toHaveCount(1);
+  await expect(btn.locator('.s-custom')).toHaveText('CUSTOM');
+});
+
+Then('the stocks list has no custom films', async ({ page }) => {
+  await expect(page.locator('.stock.custom')).toHaveCount(0);
+});
+
+async function persistedFilm(page, id) {
+  const films = await page.evaluate(() => JSON.parse(localStorage.getItem('darkroom.films') || '[]'));
+  const film = films.find((f) => f.id === id);
+  expect(film, `no persisted film "${id}" in darkroom.films`).toBeTruthy();
+  return film;
+}
+
+Then(/^the persisted film "(.+?)" holds name "(.+?)"$/, async ({ page }, id, name) => {
+  const film = await persistedFilm(page, id);
+  expect(film.name).toBe(name);
+});
+
+Then(/^the persisted film "(.+?)" holds (\w+) (-?\d+)$/, async ({ page }, id, k, v) => {
+  const film = await persistedFilm(page, id);
+  expect(film.look[k]).toBe(Number(v));
+});
+
+Then('the developed bytes are remembered', async () => {
+  results.film.bytes = readFileSync(await results.downloads[0].path());
+});
+
+Then('the developed bytes match the remembered develop', async () => {
+  const buf = readFileSync(await results.downloads[0].path());
+  expect(buf.equals(results.film.bytes)).toBe(true);
 });

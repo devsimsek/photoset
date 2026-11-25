@@ -32,7 +32,22 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 - **Validation.** Unknown schema versions, missing keys, out-of-range slider
   values, non-hex split-tone colours and unknown aspect, frame or date-format
   values are refused with a message; the current look stays untouched. A valid
-  film becomes the active look immediately.
+  film becomes the active look immediately and joins the library.
+
+## The film library
+
+- **Save film** turns the current look into a film: give it a name and an ISO
+  (both display text). It appears in the stocks list with a *CUSTOM* marker and
+  is stored in the browser under `darkroom.films`; a reload brings it back.
+  Built-in stocks are never modified by the library.
+- Clicking a saved film applies its look. The film tools then appear:
+  **rename** (the name changes, the film's id and identity stay the same),
+  **save over** (writes the current sliders onto that film, same id), and
+  **delete** (removes it for good). *Save film* on an active film saves the
+  look as a new film instead.
+- Importing a film whose id already exists in the library updates that film in
+  place; otherwise it joins the library. Developing with a saved film active
+  puts the film's name on the strip edge print.
 
 ## The sliders
 

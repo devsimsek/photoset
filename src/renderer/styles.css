@@ -418,6 +418,20 @@ body.dragging .drop-hint { display: flex; }
 }
 .stock:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4); }
 .stock.active { outline: 2px solid var(--cream); outline-offset: 2px; }
+.stock.custom { --c1: #54492f; --c2: #3c3527; --ink: #f4efe3; }
+.stock .s-custom {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 3px;
+  padding: 1px 4px;
+  z-index: 1;
+}
 
 .slider {
   display: grid;

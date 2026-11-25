@@ -55,7 +55,19 @@
   const FRAMES = ['none', '35mm', 'super8', 'instant'];
   const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
   const HEX = /^#[0-9a-f]{6}$/i;
-  const films = []; // the saved-film library (PS-13 persists it)
+  // The library loads before the settings restore, which may point at one of
+  // these films. Films are schema v1 objects (see docs/internals/film-schema.md).
+  const films = loadFilms();
+  function loadFilms() {
+    try {
+      const arr = JSON.parse(localStorage.getItem('darkroom.films') || '[]');
+      if (!Array.isArray(arr)) return [];
+      return arr.filter((f) => validateFilm(f) === null);
+    } catch { return []; }
+  }
+  function persistFilms() {
+    try { localStorage.setItem('darkroom.films', JSON.stringify(films)); } catch { /* ignore */ }
+  }
 
   // ---------- state ----------
   const state = {
@@ -68,18 +80,24 @@
     const saved = JSON.parse(localStorage.getItem('darkroom.settings') || 'null');
     if (saved && saved.s) {
       for (const k of Object.keys(state.s)) if (typeof saved.s[k] === typeof state.s[k]) state.s[k] = saved.s[k];
-      if (STOCKS.some((x) => x.id === saved.stock)) state.stock = saved.stock;
+      if (stockById(saved.stock)) state.stock = saved.stock;
       state.custom = !!saved.custom;
     }
   } catch { /* first run */ }
+  // An active library film restores exactly: its look wins over stored sliders.
+  {
+    const active = films.find((f) => f.id === state.stock);
+    if (active) { Object.assign(state.s, BASE, active.look); state.custom = true; }
+  }
   function persist() {
     try { localStorage.setItem('darkroom.settings', JSON.stringify({ s: state.s, stock: state.stock, custom: state.custom })); } catch { /* ignore */ }
   }
 
-  // ---------- films: export, validation, import ----------
+  // ---------- films: export, validation, import, library ----------
   const singleLine = (s) => String(s).replace(/\s+/g, ' ').trim();
   const slugify = (s) => singleLine(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'film';
   const stockById = (id) => STOCKS.find((x) => x.id === id) || films.find((f) => f.id === id) || null;
+  const activeFilm = () => films.find((f) => f.id === state.stock) || null;
   function uniqueId(base, taken) {
     let id = base, n = 2;
     while (taken.some((x) => x.id === id)) id = `${base}-${n++}`;
@@ -127,8 +145,53 @@
     try { raw = JSON.parse(text); } catch { return { error: 'this is not JSON' }; }
     const err = validateFilm(raw);
     if (err) return { error: err };
-    applyFilm(raw);
-    return { film: raw };
+    const film = { schema: 1, id: String(raw.id).trim(), name: raw.name, iso: raw.iso, look: raw.look };
+    const at = films.findIndex((f) => f.id === film.id);
+    if (at >= 0) films[at] = film; // the same film updates in place
+    else films.push(film);
+    persistFilms();
+    buildStocks();
+    applyFilm(film);
+    return { film };
+  }
+  function saveFilm(name, iso) {
+    const film = exportFilm();
+    film.name = singleLine(name) || film.name;
+    film.iso = singleLine(iso) || film.iso;
+    film.id = uniqueId(slugify(film.name), films); // the film's own name names the id
+    films.push(film);
+    persistFilms();
+    buildStocks();
+    applyFilm(film);
+    toast(`Film “${film.name}” saved`);
+  }
+  function renameFilm(name, iso) {
+    const f = activeFilm();
+    if (!f) return;
+    if (singleLine(name)) f.name = singleLine(name);
+    if (singleLine(iso)) f.iso = singleLine(iso);
+    persistFilms(); // the id stays stable, only the display text moves
+    buildStocks();
+    syncControls();
+    toast(`Film renamed to “${f.name}”`);
+  }
+  function saveOverFilm() {
+    const f = activeFilm();
+    if (!f) return;
+    f.look = lookSnapshot();
+    persistFilms();
+    buildStocks();
+    syncControls();
+    toast(`Film “${f.name}” updated`);
+  }
+  function deleteFilm() {
+    const i = films.findIndex((f) => f.id === state.stock);
+    if (i < 0) return;
+    const [gone] = films.splice(i, 1);
+    persistFilms();
+    buildStocks();
+    applyStock('natural');
+    toast(`Film “${singleLine(gone.name)}” deleted`);
   }
 
   // ---------- helpers ----------
@@ -170,7 +233,8 @@
   // ---------- controls ----------
   function buildStocks() {
     const box = $('#stocks');
-    for (const st of STOCKS) {
+    box.replaceChildren();
+    for (const st of STOCKS.concat(films)) {
       const b = el('button', 'stock');
       b.dataset.id = st.id;
       b.title = st.name.replace('\n', ' ');
@@ -178,6 +242,10 @@
       b.style.setProperty('--c2', st.c2);
       if (st.ink) b.style.setProperty('--ink', st.ink);
       b.append(el('span', 's-name', st.name), el('span', 's-iso', st.iso));
+      if (!STOCKS.includes(st)) {
+        b.classList.add('custom');
+        b.append(el('span', 's-custom', 'CUSTOM'));
+      }
       b.onclick = () => applyStock(st.id);
       box.append(b);
     }
@@ -200,10 +268,11 @@
     }
   }
   function applyStock(id) {
-    const st = STOCKS.find((x) => x.id === id);
+    const st = stockById(id);
+    if (!st) return;
     Object.assign(state.s, BASE, st.look);
     state.stock = id;
-    state.custom = false;
+    state.custom = !STOCKS.includes(st);
     syncControls();
     changed('look');
   }
@@ -211,6 +280,7 @@
     const st = stockById(state.stock) || { name: '?' };
     $('#stockName').textContent = st.name.replace('\n', ' ') + (state.custom ? ' · custom' : '');
     document.querySelectorAll('.stock').forEach((b) => b.classList.toggle('active', b.dataset.id === state.stock));
+    $('#filmEdit').hidden = !films.some((f) => f.id === state.stock);
   }
   function paintControl(input) {
     if (input.type !== 'range') return;
@@ -704,22 +774,38 @@
   let filmDlgMode = 'save';
   function openFilmDlg(mode) {
     filmDlgMode = mode;
-    $('#filmDlgTitle').textContent = mode === 'import' ? 'IMPORT FILM' : 'SAVE FILM';
+    $('#filmDlgTitle').textContent = mode === 'import' ? 'IMPORT FILM' : mode === 'rename' ? 'RENAME FILM' : 'SAVE FILM';
     $('#filmSaveFields').hidden = mode === 'import';
     $('#filmImportFields').hidden = mode !== 'import';
     $('#filmJson').value = '';
-    $('#filmName').value = '';
-    $('#filmIso').value = '';
+    if (mode === 'rename') {
+      const f = activeFilm();
+      $('#filmName').value = f ? singleLine(f.name) : '';
+      $('#filmIso').value = f ? f.iso : '';
+    } else if (mode === 'save') {
+      const st = stockById(state.stock);
+      $('#filmName').value = st ? singleLine(st.name) : '';
+      $('#filmIso').value = st ? String(st.iso) : 'CUSTOM';
+    } else {
+      $('#filmName').value = '';
+      $('#filmIso').value = '';
+    }
     $('#filmOk').textContent = mode === 'import' ? 'IMPORT' : 'SAVE';
     $('#filmDlg').showModal();
     (mode === 'import' ? $('#filmJson') : $('#filmName')).focus();
   }
   function onFilmOk() {
-    if (filmDlgMode !== 'import') return;
-    const r = importFilm($('#filmJson').value);
-    if (r.error) { toast('Refused: ' + r.error); return; }
+    if (filmDlgMode === 'import') {
+      const r = importFilm($('#filmJson').value);
+      if (r.error) { toast('Refused: ' + r.error); return; }
+      $('#filmDlg').close();
+      toast(`Film “${singleLine(r.film.name)}” applied`);
+      return;
+    }
+    if (!singleLine($('#filmName').value)) { toast('Give the film a name'); return; }
+    if (filmDlgMode === 'save') saveFilm($('#filmName').value, $('#filmIso').value);
+    if (filmDlgMode === 'rename') renameFilm($('#filmName').value, $('#filmIso').value);
     $('#filmDlg').close();
-    toast(`Film “${singleLine(r.film.name)}” applied`);
   }
   $('#exportFilmBtn').onclick = async () => {
     const film = exportFilm();
@@ -731,6 +817,10 @@
     });
   };
   $('#importFilmBtn').onclick = () => openFilmDlg('import');
+  $('#saveFilmBtn').onclick = () => openFilmDlg('save');
+  $('#renameFilmBtn').onclick = () => openFilmDlg('rename');
+  $('#saveOverBtn').onclick = saveOverFilm;
+  $('#deleteFilmBtn').onclick = deleteFilm;
   $('#filmCancel').onclick = () => $('#filmDlg').close();
   $('#filmOk').onclick = onFilmOk;
   $('#filmFile').onchange = async () => {
