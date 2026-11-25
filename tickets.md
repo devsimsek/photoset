@@ -62,9 +62,9 @@ paths and never commit outside them.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-26 | Decoder integration: FlashRaw lazy-loaded, self-hosted in web-dist | Open | `package.json`, `web-api.js`, `sw.js`, `build-web.js`, features/ | |
-| PS-27 | RAW load path: DNG/CR3/ARW accepted, instant embedded preview, progress, abort | Open | `app.js`, `web-api.js`, `engine.js`, `index.html`, `styles.css`, features/ | |
-| PS-28 | Latency measurement + ADR 0004 verification (24 MP target) | Open | `docs/adr/0004-raw-decoding.md`, features/ | |
+| PS-26 | Decoder integration: FlashRaw lazy-loaded, self-hosted in web-dist | Done | `package.json`, `web-api.js`, `sw.js`, `build-web.js`, features/ | Commit `c7e7b66`. Red proof: decodeRaw absent pre-impl. `flashraw@0.5.0` pinned exact, first runtime dependency. Decoder dist copied into `web-dist/flashraw/` (list derived from the installed package); sw serves it cache-first into `photoset-decoder-<version>`, filled on first fetch, never install-precached. Offline second decode proven. |
+| PS-27 | RAW load path: DNG/CR3/ARW accepted, instant embedded preview, progress, abort | Done | `app.js`, `web-api.js`, `engine.js`, features/ | Commit `620db25`. Red proof: 4 failed pre-impl. Loaders accept .dng/.cr3/.arw; embedded preview instant, decode-on-demand then drop; roll change aborts via AbortController (proved by stats counting). Fixture: CC0 Blackmagic CinemaDNG + appended preview SubIFD, checksums in features/fixtures/README.md. Keep-EXIF for RAW writes the capture date when metadata carries one (fixture has none). |
+| PS-28 | Latency measurement + ADR 0004 verification (24 MP target) | Done | `docs/adr/0004-raw-decoding.md`, `docs/laws.md`, `docs/user-guide.md`, `docs/internals/raw.md` | Commit `e974c31`. 24 MP Ricoh GR III: 655-674 ms warm in Chromium (budget 5 s, 7x margin). Fixture: 71 ms. ADR unverified item moved to Verified. Nav gaps for ADR 0004 + internals/raw.md fixed in `6c356c7`. Remaining unverified, recorded: CR3/ARW in-browser (no clean CC0 fixture, 20-30 MB), FlashRaw mid-decode worker cancellation, JPEG XL DNG second binary. |
 | PS-15 | MkDocs theme: switch Material to shadcn | Open | `mkdocs.yml`, `.github/workflows/pages.yml` | |
 
 ## Future waves (planned, not ticketed yet)
