@@ -1,0 +1,13 @@
+{
+  "name": "photoset-darkroom",
+  "productName": "Photoset Darkroom",
+  "version": "0.0.1",
+  "description": "Retro batch photo developer and JPG compressor",
+  "author": "devsimsek",
+  "license": "MIT",
+  "scripts": {
+    "icon": "node build/make-icon.js",
+    "build:web": "node build/make-icon.js && node build/build-web.js",
+    "serve:web": "node build/build-web.js && node build/serve-web.js"
+  }
+}

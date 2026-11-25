@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Photoset Darkroom</title>
+<meta name="description" content="Retro film looks, film strips and batch JPG compression. Runs in your browser; photos never leave your device.">
+<meta name="theme-color" content="#15120e">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="titlebar">
+  <div class="brand">
+    <div class="stripes"><i></i><i></i><i></i></div>
+    <div class="wordmark">PHOTOSET<span>DARKROOM</span></div>
+  </div>
+  <div class="roll-label" id="rollLabel">NO ROLL LOADED</div>
+  <div class="tb-right">
+    <div class="lcd" title="Exposures on this roll"><span id="lcdNum">00</span><small>EXP</small></div>
+    <button class="btn" id="loadBtn">LOAD ROLL</button>
+  </div>
+</header>
+
+<main class="app">
+  <aside class="roll">
+    <div class="panel-head">
+      <span>CONTACT SHEET</span>
+      <span class="pick-tools">
+        <button class="link" id="pickAll" title="Pick every shot">pick all</button>
+        <button class="link" id="pickNone" title="Clear picks">clear</button>
+        <span class="count" id="rollCount">0</span>
+      </span>
+    </div>
+    <div class="pick-hint" id="pickHint">Tap ○ to pick shots</div>
+    <div class="roll-list" id="rollList"></div>
+    <div class="roll-foot" id="rollFoot">—</div>
+  </aside>
+
+  <section class="stage">
+    <div class="viewport" id="viewport">
+      <canvas id="preview" hidden></canvas>
+      <div class="empty" id="empty">
+        <div class="canister" aria-hidden="true">
+          <div class="cap"></div>
+          <div class="can-body"><span>PHOTOSET</span><b>400</b><em>36 EXP</em></div>
+          <div class="cap bottom"></div>
+          <div class="leader"></div>
+        </div>
+        <h1>Load a roll</h1>
+        <p>Pick a folder of .jpg photos, or drop it onto this window.<br>Your originals are never touched. Developed copies go into a subfolder.</p>
+        <p class="web-only privacy">Everything runs in your browser. Your photos are never uploaded.</p>
+        <button class="btn big primary" id="emptyLoad">CHOOSE FOLDER</button>
+      </div>
+      <div class="view-hint" id="viewHint" hidden>Not in a strip yet · press Space or tap ○ to pick it</div>
+      <div class="drop-hint" id="dropHint">DROP FOLDER TO LOAD ROLL</div>
+      <div class="spinner" id="spinner"></div>
+    </div>
+    <div class="stage-bar">
+      <button class="icon-btn" id="prevBtn" title="Previous (←)">◀</button>
+      <div class="frame-info" id="frameInfo">—</div>
+      <button class="icon-btn" id="nextBtn" title="Next (→)">▶</button>
+      <button class="btn ghost" id="compareBtn" title="Hold to see the original">HOLD · ORIGINAL</button>
+    </div>
+  </section>
+
+  <aside class="controls">
+    <div class="ctrl-scroll">
+      <section>
+        <div class="sec-head">FILM STOCK <span class="stock-name" id="stockName"></span></div>
+        <div class="stocks" id="stocks"></div>
+      </section>
+
+      <section>
+        <div class="sec-head">LOOK <button class="link" id="resetLook">reset to stock</button></div>
+        <div id="sliders"></div>
+        <div class="tones">
+          <label>Shadow tone <input type="color" data-k="shadow"></label>
+          <label>Highlight tone <input type="color" data-k="highlight"></label>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head">FORMAT</div>
+        <div class="row"><label>Crop</label>
+          <select data-k="aspect">
+            <option value="orig">Original</option>
+            <option value="3:2">3:2 · 35mm</option>
+            <option value="4:3">4:3 · Super 8</option>
+            <option value="5:4">5:4</option>
+            <option value="1:1">1:1 · Square</option>
+            <option value="16:9">16:9</option>
+            <option value="cine">2.39:1 · Cinemascope</option>
+            <option value="instant">Instant mini</option>
+          </select>
+        </div>
+        <div class="row"><label>Frame</label>
+          <select data-k="frame" id="frameSel">
+            <option value="none">None</option>
+            <option value="35mm">35mm film frame</option>
+            <option value="super8">Super 8 gate</option>
+            <option value="instant">Instant print</option>
+          </select>
+        </div>
+        <div class="row"><label>Date stamp</label>
+          <label class="switch"><input type="checkbox" data-k="date"><span></span></label>
+          <select data-k="dateFmt" class="grow">
+            <option value="ymd">'YY MM DD</option>
+            <option value="mdy">MM DD 'YY</option>
+            <option value="dmy">DD MM 'YY</option>
+          </select>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head">OUTPUT</div>
+        <div class="slider">
+          <label>JPG quality</label>
+          <input type="range" data-k="quality" min="30" max="100" step="1">
+          <output></output>
+        </div>
+        <div class="row"><label>Max size</label>
+          <select data-k="maxEdge" data-num>
+            <option value="0">Original size</option>
+            <option value="4000">4000 px</option>
+            <option value="3000">3000 px</option>
+            <option value="2048">2048 px</option>
+            <option value="1600">1600 px</option>
+            <option value="1080">1080 px</option>
+          </select>
+        </div>
+        <div class="row"><label>Output</label>
+          <select data-k="mode">
+            <option value="single">One file per photo</option>
+            <option value="strip">Film strips</option>
+          </select>
+          <select data-k="stripN" data-num id="stripN" class="narrow" title="Frames per strip">
+            <option value="3">×3</option><option value="4">×4</option><option value="5">×5</option><option value="6">×6</option>
+          </select>
+        </div>
+        <div class="row"><label>Save into</label>
+          <div class="folder-input"><input type="text" data-k="folder" spellcheck="false" maxlength="60"><span>/</span></div>
+        </div>
+        <div class="estimate" id="estimate">
+          <div><span>THIS SHOT</span><b id="estOne">—</b></div>
+          <div><span>WHOLE ROLL</span><b id="estAll">—</b></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="develop">
+      <div class="progress" id="progress"><div id="progressBar"></div></div>
+      <div class="dev-row">
+        <button class="btn ghost" id="saveOneBtn">SAVE THIS</button>
+        <button class="btn primary" id="developBtn">DEVELOP ROLL ▸</button>
+      </div>
+      <div class="dev-note" id="devNote">Originals stay untouched</div>
+    </div>
+  </aside>
+</main>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><button class="link" id="toastAction" hidden></button></div>
+
+<script src="engine.js"></script>
+<script src="web-api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

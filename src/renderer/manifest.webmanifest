@@ -1,0 +1,13 @@
+{
+  "name": "Photoset Darkroom",
+  "short_name": "Darkroom",
+  "description": "Retro film looks, film strips and batch JPG compression, right in your browser.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#15120e",
+  "theme_color": "#15120e",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
