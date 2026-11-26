@@ -15,9 +15,8 @@
   let batch = null; // one develop run
 
   // ---------- intake progress ----------
-  // Metadata reads run in bounded chunks with a UI yield between them and
-  // report through onIntakeProgress; one Promise.all over thousands of reads
-  // starves the page.
+  // Metadata reads run in bounded chunks with a UI yield; a Promise.all over
+  // thousands of reads starves the page.
   const INTAKE_CHUNK = 64;
   let onIntake = null;
   const reportIntake = (done, total) => { if (onIntake) onIntake(done, total); };
@@ -167,8 +166,7 @@
   }
 
   // ---------- RAW decoding (ADR 0004) ----------
-  // FlashRaw, self-hosted from web-dist/flashraw/. The module loads only on
-  // the first RAW decode; aborts ride the caller's AbortSignal.
+  // FlashRaw, self-hosted; loads only on the first RAW decode.
   let rawPoolPromise = null;
   function rawPool() {
     if (!rawPoolPromise) {
@@ -184,8 +182,7 @@
 
   // Decode-call accounting for the BDD suite and debugging (abort coverage).
   const rawStats = { started: 0, done: 0, aborted: 0 };
-  // A stall hook the RAW scenarios set (ms) to hold decodeRaw before the pool
-  // call; the abort is then observable deterministically.
+  // A stall hook the RAW scenarios set (ms) to hold decodeRaw before the pool call.
   let stallDecode = 0;
   const stalled = new Set();
 
@@ -211,9 +208,8 @@
 
   const isAbort = (e) => (e && (e.name === 'AbortError' || e.name === 'ClosedError' || e.kind === 'Cancelled' || e.kind === 'Closed'));
 
-  // file: a photo's file name (looked up in the open roll), or a Blob with the
-  // RAW bytes. Returns a full-resolution rgba8 canvas for renderLook; no
-  // format side path, callers treat it like a decoded JPG bitmap.
+  // file: a file name in the open roll, or a Blob with RAW bytes. Returns a
+  // full-resolution rgba8 canvas for renderLook, like a decoded JPG bitmap.
   async function decodeRaw(file, { signal } = {}) {
     rawStats.started++;
     try {
@@ -310,7 +306,7 @@
       return { dir: roll.name, name: roll.name, files: [{ name, size: file.size, mtime: file.lastModified }] };
     },
 
-    // Registers a pasted file's pixels under an open roll so readFile finds it.
+    // Registers a pasted file under the open roll so readFile finds it.
     addRollFile(name, file) {
       if (!roll) roll = { name: 'pasted', dir: null, files: new Map() };
       roll.files.set(name, file);
@@ -352,7 +348,7 @@
       return n;
     },
 
-    // Hands the results over: nothing to do for folder mode; one file or a .zip for download mode.
+    // Nothing to do for folder mode; one file or a .zip for download mode.
     async endBatch() {
       const b = batch;
       batch = null;

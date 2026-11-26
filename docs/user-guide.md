@@ -148,6 +148,17 @@ to Keep EXIF, off by default: they are written only when both toggles are on
 and the source carries coordinates, and the app never invents or estimates a
 location (see [The Laws](laws.md)).
 
+## Half-frame 35mm
+
+Set the frame to *Half-frame 35mm* and each develop pairs shots: two vertical
+exposures sit side by side inside one 35mm frame with the film bands and
+sprocket holes around them. The edge print numbers advance half a frame per
+shot, in the A/B half-frame convention: the first two shots land on frame 1
+and print **1A/1B**, the next pair prints 2A/2B, and a trailing odd shot
+composes alone, half filled, printing only its **A** position. Outputs name
+themselves `strip_NNN` and share the roll's strip numbering, so a half-frame
+batch continues where the last strip left off.
+
 ## Saving
 
 - **Chrome / Edge (desktop).** The app saves into a subfolder of the roll folder,

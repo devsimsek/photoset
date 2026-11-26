@@ -9,22 +9,26 @@ export function quoted(text) {
 }
 
 // Loads a roll through api.fromFiles and window.__darkroom.loadRoll, building
-// real JPEG bytes in the page. specs: [{ name, rel?, busy?, garbage?, asym? }]
-// where rel is the fake webkitRelativePath a browser would report for folder
-// picks, busy makes a larger, high-detail (incompressible) 256x192 shot,
-// garbage swaps the bytes for undecodable noise that still carries a .jpg
-// name, and asym makes a 160x80 shot with red on the left and blue on the
-// right, for the rotation and crop scenarios to sample.
+// real JPEG bytes in the page. specs: [{ name, rel?, busy?, garbage?, asym?,
+// tone? }] where rel is the fake webkitRelativePath a browser would report
+// for folder picks, busy makes a larger, high-detail (incompressible) 256x192
+// shot, garbage swaps the bytes for undecodable noise that still carries a
+// .jpg name, asym makes a 160x80 shot with red on the left and blue on the
+// right, and tone makes a 120x80 shot filled with the given colour, for the
+// rotation, crop and half-frame scenarios to sample.
 export async function loadRoll(page, specs, rollName) {
   await openApp(page);
   return page.evaluate(async ({ specs, rollName }) => {
-    const makeJpeg = async (busy, garbage, asym) => {
+    const makeJpeg = async (busy, garbage, asym, tone) => {
       if (garbage) return crypto.getRandomValues(new Uint8Array(200));
       const c = document.createElement('canvas');
-      c.width = busy ? 256 : asym ? 160 : 64;
-      c.height = busy ? 192 : asym ? 80 : 48;
+      c.width = busy ? 256 : asym ? 160 : tone ? 120 : 64;
+      c.height = busy ? 192 : asym || tone ? 80 : 48;
       const x = c.getContext('2d');
-      if (asym) {
+      if (tone) {
+        x.fillStyle = tone;
+        x.fillRect(0, 0, c.width, c.height);
+      } else if (asym) {
         x.fillStyle = '#ff0000';
         x.fillRect(0, 0, 80, 80);
         x.fillStyle = '#0000ff';
@@ -49,7 +53,7 @@ export async function loadRoll(page, specs, rollName) {
     };
     const files = [];
     for (const s of specs) {
-      const f = new File([await makeJpeg(!!s.busy, !!s.garbage, !!s.asym)], s.name, { type: 'image/jpeg' });
+      const f = new File([await makeJpeg(!!s.busy, !!s.garbage, !!s.asym, s.tone)], s.name, { type: 'image/jpeg' });
       if (s.rel) Object.defineProperty(f, 'webkitRelativePath', { value: s.rel });
       files.push(f);
     }
@@ -65,12 +69,23 @@ export async function openApp(page) {
   await page.waitForFunction(() => !!(window.api && window.__darkroom));
 }
 
-// Decodes the latest developed download in the page and samples small square
-// patches, averaged so JPEG ringing never flips an assertion. spots: [fx, fy]
-// pairs in output fractions. Returns { w, h, spots: [[r, g, b], ...] }.
-export async function probeResult(page, spots) {
+// Resolves the latest run's outputs as [{ name, bytes }]: a single download
+// decodes as itself, a batch zip unpacks to its entries.
+export async function resultBlobs(page) {
   const download = results.downloads[0];
   const buf = readFileSync(await download.path());
+  if (buf[0] === 0x50 && buf[1] === 0x4b) {
+    return zipEntries(buf).map((e) => ({ name: e.name, bytes: new Uint8Array(e.data) }));
+  }
+  return [{ name: download.suggestedFilename(), bytes: new Uint8Array(buf) }];
+}
+
+// Decodes a developed download in the page and samples small square patches,
+// averaged so JPEG ringing never flips an assertion. spots: [fx, fy] pairs in
+// output fractions; at indexes the resolved outputs. Returns
+// { w, h, spots: [[r, g, b], ...] }.
+export async function probeResult(page, spots, at = 0) {
+  const bytes = (await resultBlobs(page))[at].bytes;
   return page.evaluate(async ({ bytes, spots }) => {
     const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }));
     const c = document.createElement('canvas');
@@ -79,17 +94,17 @@ export async function probeResult(page, spots) {
     const x = c.getContext('2d');
     x.drawImage(bmp, 0, 0);
     bmp.close();
-    const avg = (fx, fy) => {
-      const r = 4, px = Math.min(c.width - 5, Math.max(4, Math.round(fx * c.width))),
+    const avg = (fx, fy, rad) => {
+      const r = rad || 4, px = Math.min(c.width - 5, Math.max(4, Math.round(fx * c.width))),
         py = Math.min(c.height - 5, Math.max(4, Math.round(fy * c.height)));
-      const d = x.getImageData(px - 4, py - 4, 9, 9).data;
+      const d = x.getImageData(px - r, py - r, r * 2 + 1, r * 2 + 1).data;
       const sum = [0, 0, 0];
       for (let i = 0; i < d.length; i += 4) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
       const n = d.length / 4;
       return sum.map((v) => v / n);
     };
-    return { w: c.width, h: c.height, spots: spots.map(([a, b]) => avg(a, b)) };
-  }, { bytes: new Uint8Array(buf), spots });
+    return { w: c.width, h: c.height, spots: spots.map(([a, b, r]) => avg(a, b, r)) };
+  }, { bytes, spots });
 }
 
 // Patch averages land near the fill colour with JPEG wobble; the thresholds

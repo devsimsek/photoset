@@ -52,13 +52,11 @@
     'shadow', 'highlight', 'grain', 'grainSize', 'vignette', 'softness',
     'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt', 'rotate',
   ];
-  // Rotate joined schema v1 late: an OPTIONAL look key with default 0, so
-  // films written without it still validate (v1 films import forever).
+  // rotate: OPTIONAL schema v1 look key, default 0; old films still validate.
   const ROTS = [0, 90, 180, 270];
-  const FRAMES = ['none', '35mm', 'super8', 'instant'];
+  const FRAMES = ['none', '35mm', 'super8', 'instant', 'halfframe'];
   const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
   const HEX = /^#[0-9a-f]{6}$/i;
-  // The library loads before the settings restore; films are schema v1 objects.
   const films = loadFilms();
   function loadFilms() {
     try {
@@ -88,7 +86,6 @@
       state.custom = !!saved.custom;
     }
   } catch { /* first run */ }
-  // An active library film restores exactly: its look wins over stored sliders.
   {
     const active = films.find((f) => f.id === state.stock);
     if (active) { Object.assign(state.s, BASE, active.look); state.custom = true; }
@@ -98,8 +95,7 @@
   }
 
   // ---------- roll memory (metadata only, pixels never) ----------
-  // darkroom.roll remembers a roll: shot names, sizes, mtimes, EXIF dates,
-  // picks, the strip high-water mark. No image bytes, no data URLs, no base64.
+  // darkroom.roll: names, sizes, mtimes, EXIF dates, picks, strip high-water mark. Pixels never.
   const ROLL_KEY = 'darkroom.roll';
 
   function rememberedMeta() {
@@ -241,8 +237,7 @@
     toast(`Film renamed to “${f.name}”`);
   }
   // ---------- films travel: link, QR, boot import ----------
-  // The film rides in the address hash as base64url of its schema v1 JSON;
-  // the link is the app's own address, so opening it imports the film on boot.
+  // The film rides in the hash as base64url of its schema v1 JSON.
   function filmB64(film) {
     const bytes = new TextEncoder().encode(JSON.stringify(film));
     let s = '';
@@ -288,7 +283,6 @@
 
   // ---------- helpers ----------
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
-  // rAF stalls in hidden or minimised windows; background work yields with a macrotask
   const yieldUI = () => new Promise((r) => setTimeout(r, 0));
   function fmtBytes(n) {
     if (!isFinite(n)) return '-';
@@ -300,12 +294,10 @@
   const pct = (r) => (r === 1 ? '±0%' : r <= 1 ? `−${Math.round((1 - r) * 100)}%` : `+${Math.round((r - 1) * 100)}%`);
   const safeFolder = (v) => String(v || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().replace(/^\.+$/, '') || 'developed';
   const stripAspect = (s) => (s.aspect === 'orig' ? '3:2' : s.aspect);
-  // Free crop (PS-40): fractions of the ROTATED frame, per shot, in the roll
-  // metadata. The engine crops the region first, the aspect crop centers inside it.
+  // Free crop: fractions of the ROTATED frame, per shot, in the roll metadata.
   const cropOf = (p) => (state.perPhoto[p.name] || {}).crop || null;
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
-  // The shots that get developed / put on strips: picks in pick order, or the
-  // whole roll. Missing shots have no pixels and are skipped.
+  // The shots that get developed: picks in pick order, or the whole roll.
   const sequence = () => {
     const base = state.picks.length ? state.picks.map((i) => state.photos[i]) : state.photos;
     return base.filter((p) => p && !p.missing);
@@ -316,6 +308,10 @@
     return out;
   }
   const groupOf = (p, n) => { const k = sequence().indexOf(p); return k < 0 ? -1 : Math.floor(k / n); };
+  // Half-frame batches pair shots; output names share the roll's strip numbering.
+  const isHalf = (s) => s.mode !== 'strip' && s.frame === 'halfframe';
+  const halfGroups = () => stripGroups(2);
+  const halfOf = (p) => groupOf(p, 2);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
   let toastTimer = 0;
@@ -329,7 +325,6 @@
     toastTimer = setTimeout(() => $('#toast').classList.remove('on'), actionLabel ? 9000 : 4000);
   }
 
-  // The intake line: one line reporting what the load is doing, gone when ready.
   const showIntake = (text) => { const n = $('#intakeLine'); n.hidden = false; n.textContent = text; };
   const hideIntake = () => { $('#intakeLine').hidden = true; };
 
@@ -576,11 +571,7 @@
   }
 
   // ---------- roll list: tiles render lazily ----------
-  // A whole phone's folder can hold thousands of shots; one live node set per
-  // photo never fully opens. RENDER_BATCH tiles render up front and an
-  // IntersectionObserver on a sentinel renders more as the photographer
-  // scrolls near the end; a keyboard walk that outruns the window renders up
-  // to its shot through select().
+  // Lazy tiles: RENDER_BATCH up front, sentinel-driven on scroll, select() renders ahead.
   const RENDER_BATCH = 60;
   let rollIO = null;
 
@@ -603,7 +594,6 @@
 
   function renderMoreTiles() { renderTiles(state.rendered + RENDER_BATCH); }
 
-  // Renders tiles up to n shots; the sentinel stays last for the observer.
   function renderTiles(n) {
     const list = $('#rollList');
     const end = Math.min(state.photos.length, n);
@@ -660,9 +650,7 @@
   }
 
   // ---------- decoding ----------
-  // RAW shots (ADR 0004) decode through the self-hosted FlashRaw decoder into
-  // the SAME pipeline: decodeRaw hands back a canvas, everything after it is
-  // renderLook. One AbortController per roll aborts in-flight decodes.
+  // RAW decodes feed the SAME pipeline: decodeRaw hands back a canvas, the rest is renderLook.
   let rawAbort = new AbortController();
   const rawSignal = () => rawAbort.signal;
   const isRaw = (name) => api.isRaw(name);
@@ -672,7 +660,6 @@
     rawAbort = new AbortController();
   }
 
-  // Full transient RAW decode: decode-then-drop, no caching.
   async function decodeRawFull(p) {
     const c = await api.decodeRaw(p.name, { signal: rawSignal() });
     if (!p.w) { p.w = c.width; p.h = c.height; }
@@ -699,12 +686,12 @@
     return bmp;
   }
   // Bitmaps close themselves; decoded RAW canvases release by being zeroed.
+  // One decoded RAW shot may live in memory per view.
   const dropSource = (b) => {
     if (!b) return;
     if (b.close) b.close();
     else { b.width = 0; b.height = 0; }
-  };
-  // One decoded RAW shot may live in memory per view: the others are dropped.
+  };  // One decoded RAW shot may live in memory per view: the others are dropped.
   function dropRawSources(keep) {
     for (const p of state.photos) {
       if (p.rawSrc && p !== keep) { p.rawSrc.width = 0; p.rawSrc.height = 0; p.rawSrc = null; }
@@ -749,7 +736,6 @@
     return URL.createObjectURL(blob);
   }
 
-  // RAW tiles: embedded preview at once, full decode later.
   async function rawThumb(p, token) {
     try {
       const jpg = await api.rawPreview(p.name, { signal: rawSignal() });
@@ -768,7 +754,6 @@
     }
   }
 
-  // The tile thumb follows the real decode once there is one.
   async function refreshRawThumb(p) {
     if (!p.rawSrc) return;
     p.rawState = 'decoded';
@@ -782,8 +767,7 @@
   }
 
   // ---------- preparing shots (thumbs + the intake line) ----------
-  // Preparing a shot means its thumbnail: decode, small JPEG blob URL, tile
-  // update. Only shots with a tile are prepared. Failures surface by name.
+  // Preparing a shot means its thumbnail; failures surface by name.
   let prepRunning = false, prepQueued = false, prepPromise = Promise.resolve();
   const needPrep = (q) => q.el && !q.prepped && !q.prepping && !q.remembered && !q.missing;
 
@@ -844,6 +828,13 @@
     state.lastStripLabel = label ?? null;
     return Engine.composeStrip(frames, startNum, label);
   }
+  // Half-frame composition records the A/B edge print for the scenarios.
+  function composeHalfLabeled(a, b, num) {
+    const label = edgeLabel();
+    state.lastStripLabel = label ?? null;
+    state.lastEdgeNums = [Engine.halfPrint(num, !!b)];
+    return Engine.composeHalfFrame(a, b, num, label);
+  }
   function applyFrameLabeled(c, s, index) {
     const label = s.frame === '35mm' ? edgeLabel() : undefined;
     state.lastStripLabel = label ?? null;
@@ -855,7 +846,6 @@
     if (!state.photos.length) return;
     i = Math.max(0, Math.min(state.photos.length - 1, i));
     state.sel = i;
-    // Leaving a shot drops its decoded RAW pixels: one full decode lives at a time.
     dropRawSources(null);
     document.querySelectorAll('.roll-item.sel').forEach((n) => n.classList.remove('sel'));
     const p = state.photos[i];
@@ -876,6 +866,9 @@
     if (state.s.mode === 'strip') {
       const g = groupOf(p, state.s.stripN);
       parts.push(g >= 0 ? `strip ${g + 1} of ${stripGroups(state.s.stripN).length}` : 'not on a strip');
+    } else if (isHalf(state.s)) {
+      const g = halfOf(p);
+      parts.push(g >= 0 ? `half-frame ${g + 1} of ${halfGroups().length}` : 'not on a half-frame');
     }
     $('#frameInfo').replaceChildren(el('b', null, `${String(state.sel + 1).padStart(2, '0')} / ${String(state.photos.length).padStart(2, '0')}`), '  ·  ' + parts.join('  ·  '));
   }
@@ -914,6 +907,14 @@
     if (state.cropMode) {
       // Crop mode shows the full rotated frame; the crop rect overlays it.
       out = Engine.renderLook(await getSource(p), p, s, PREV_EDGE, 'orig');
+    } else if (isHalf(s)) {
+      const g = halfOf(p);
+      const group = g >= 0 ? halfGroups()[g] : [p];
+      const frames = [];
+      for (const q of group) {
+        frames.push(Engine.renderLook(await getSource(q), q, s, STRIP_PREV_EDGE, null, cropOf(q)));
+      }
+      out = composeHalfLabeled(frames[0], frames[1] || null, g + 1);
     } else if (s.mode === 'strip') {
       const g = groupOf(p, s.stripN);
       const group = g >= 0 ? stripGroups(s.stripN)[g] : [p];
@@ -1023,10 +1024,20 @@
     }
     return { canvas: composeStripLabeled(frames, gi * s.stripN + 1), group };
   }
+  async function renderHalfFull(gi, s, num) {
+    const group = halfGroups()[gi];
+    const edge = s.maxEdge ? Math.min(s.maxEdge, 2400) : 2000;
+    const frames = [];
+    for (const q of group) {
+      const bmp = await decode(q);
+      try { frames.push(Engine.renderLook(bmp, q, s, edge, null, cropOf(q))); } finally { dropSource(bmp); }
+    }
+    return { canvas: composeHalfLabeled(frames[0], frames[1] || null, num), group };
+  }
 
   // ---------- size estimate ----------
-  // Encode under the optional size cap. JPG/WebP: binary-search quality, floor
-  // 10, ship the largest fit. PNG scales the long edge in 10% steps to 50%.
+  // Encode under the optional size cap: JPG/WebP binary-search quality (floor
+  // 10); PNG scales the long edge in 10% steps to 50%.
   async function encodeFits(canvas, s) {
     const cap = (s.capKB || 0) * 1024;
     if (!cap) return Engine.encode(canvas, s.quality, s.format);
@@ -1073,6 +1084,10 @@
         const r = await renderStripFull(Math.max(0, groupOf(state.photos[state.sel], s.stripN)), s);
         canvas = r.canvas;
         before = r.group.reduce((a, q) => a + q.size, 0);
+      } else if (isHalf(s)) {
+        const r = await renderHalfFull(Math.max(0, halfOf(state.photos[state.sel])), s, 1);
+        canvas = r.canvas;
+        before = r.group.reduce((a, q) => a + q.size, 0);
       } else {
         const p = state.photos[state.sel];
         canvas = await renderSingleFull(p, s);
@@ -1104,11 +1119,14 @@
     if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
     const s = { ...state.s }, folder = safeFolder(s.folder);
     const strip = s.mode === 'strip';
+    const half = isHalf(s);
     const cur = state.photos[state.sel];
     if (onlyCurrent && cur && cur.missing) { toast('That shot is missing from the folder, so there is nothing to develop.'); return; }
     const jobs = strip
       ? (onlyCurrent ? [groupOf(cur, s.stripN)].filter((g) => g >= 0) : stripGroups(s.stripN).map((_, i) => i))
-      : (onlyCurrent ? [state.sel] : sequence().map((p) => p.idx));
+      : half
+        ? (onlyCurrent ? [halfOf(cur)].filter((g) => g >= 0) : halfGroups().map((_, i) => i))
+        : (onlyCurrent ? [state.sel] : sequence().map((p) => p.idx));
     if (!jobs.length) { toast('This shot isn’t on a strip yet. Pick it first (Space or ○).'); return; }
     setBusy(true);
     setProgress(0);
@@ -1116,8 +1134,7 @@
     estSeq++;
     let before = 0, after = 0, done = 0, attempts = 0;
     const failures = []; // "name (reason)" entries, reported at the end of the run
-    // Strips continue the roll's numbering: the remembered high-water mark is
-    // where the next batch starts; accepted names move the mark forward.
+    // Strips continue the roll's numbering from the remembered high-water mark.
     const stripBase = state.stripHigh || 0;
     try {
       if (api.beginBatch) await api.beginBatch(folder); // first await: still inside the click, so the browser may prompt
@@ -1130,6 +1147,9 @@
           if (strip) {
             label = name = `strip_${String(stripBase + j + 1).padStart(3, '0')}.${ext}`;
             ({ canvas, group } = await renderStripFull(j, s));
+          } else if (half) {
+            label = name = `strip_${String(stripBase + j + 1).padStart(3, '0')}.${ext}`;
+            ({ canvas, group } = await renderHalfFull(j, s, stripBase + j + 1));
           } else {
             const p = state.photos[j];
             group = [p];
@@ -1141,7 +1161,6 @@
           canvas.width = canvas.height = 0;
           let bytes = await blob.arrayBuffer();
           if (s.keepExif && fmt === 'image/jpeg') {
-            // The story the source carries; a RAW shot keeps just its date.
             const story = group[0].exif || (group[0].date ? { date: group[0].date } : null);
             bytes = Exif.stamp(new Uint8Array(bytes), story, s.gpsExif).buffer;
           }
@@ -1154,7 +1173,9 @@
           before += group.reduce((a, q) => a + q.size, 0);
           after += blob.size;
           done++;
-          if (!strip) { group[0].out = blob.size; updateItem(group[0]); }
+          if (strip) { /* strip outputs carry no per-shot size */ }
+          else if (half) { for (const q of group) { q.out = blob.size; updateItem(q); } }
+          else { group[0].out = blob.size; updateItem(group[0]); }
         } catch (e) {
           // One bad shot never stops the batch: name it with a reason and go on.
           console.error('develop failed:', label || `#${j}`, e);
@@ -1167,7 +1188,7 @@
         await yieldUI();
       }
       const downloaded = api.endBatch ? await api.endBatch() : null;
-      const what = strip ? 'strip' : 'photo';
+      const what = strip ? 'strip' : half ? 'half-frame' : 'photo';
       let msg = `Developed ${done} ${what}${done === 1 ? '' : 's'}`;
       if (failures.length) msg = `Developed ${done}, failed ${failures.length}: ${failures.join(', ')}`;
       else msg += ` · ${fmtBytes(before)} → ${fmtBytes(after)} (${pct(after / before)})`;
@@ -1187,7 +1208,6 @@
     }
   }
 
-  // ---------- compare ----------
   async function showOriginal() {
     const p = state.photos[state.sel];
     if (p) showCanvas(await getSource(p));
@@ -1196,7 +1216,6 @@
 
   // ---------- wiring ----------
   window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, filmLink, whenReady: () => prepPromise }; // debugging / smoke tests
-  // Intake progress from the bridge: the metadata reads report chunk by chunk.
   window.__intakeLog = []; // accounting for the BDD suite and debugging
   api.onIntakeProgress((done, total) => {
     showIntake(total ? `Reading ${done} / ${total}…` : 'Reading the folder…');
@@ -1212,7 +1231,6 @@
   $('#loadBtn').onclick = pickFolder;
   $('#emptyLoad').onclick = pickFolder;
   $('#rememberLoad').onclick = pickFolder;
-  // Reaching the bottom of the sheet renders more tiles even mid-flick.
   $('#rollList').addEventListener('scroll', () => {
     const list = $('#rollList');
     if (list.scrollTop + list.clientHeight >= list.scrollHeight - 800) renderMoreTiles();
@@ -1232,8 +1250,6 @@
     $('#filmSaveFields').hidden = mode === 'import';
     $('#filmImportFields').hidden = mode !== 'import';
     $('#filmJson').value = '';
-    // The film link and its QR: the current look as a shareable address; the QR
-    // only draws when the payload fits one code.
     $('#filmShareFields').hidden = mode === 'import';
     if (mode !== 'import') {
       const link = filmLink();
@@ -1303,7 +1319,6 @@
   window.addEventListener('keydown', (e) => {
     // Typing fields never navigate.
     if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return;
-    // A modal dialog owns the keyboard while it is open.
     if (document.querySelector('dialog[open]')) {
       if (e.key === 'Escape') $('#filmDlg').close();
       return;
@@ -1325,7 +1340,7 @@
     if (state.busy || !e.dataTransfer.files.length) return;
     try {
       showIntake('Opening the drop…'); // sync: openDrop must be called before any await
-      // web: openDrop must run before any await, while the dropped items are readable
+      // web: openDrop must run before any await, while the drop items are readable
       if (api.openDrop) { await loadRoll(await api.openDrop(e.dataTransfer)); return; }
       const p = api.pathForFile(e.dataTransfer.files[0]);
       if (p) await loadRoll(await api.openDir(p));
@@ -1361,7 +1376,6 @@
       toast(`Pasted ${name} starts a new roll`);
       return;
     }
-    // Insert in name order, renumbering what follows; picks and selection stay put.
     const at = state.photos.findIndex((q) =>
       q.name.localeCompare(name, undefined, { numeric: true, sensitivity: 'base' }) > 0);
     const i = at < 0 ? state.photos.length : at;
@@ -1404,7 +1418,6 @@
     window.launchQueue.setConsumer((launch) => {
       const files = launch && launch.files ? [...launch.files].filter(Boolean) : [];
       if (files.length) intakeShared(files);
-      // A bare launch only opens the app; a share launch with nothing usable answers.
       else if (launch && launch.targetURL) toast('The share carried no photos the roll could load');
     });
   }
@@ -1415,11 +1428,9 @@
   }
 
   // ---------- service worker (web builds only) ----------
-  // Registered only in secure contexts with SW support; the relative URL keeps
-  // the registration correct under any deploy base path.
+  // Registered only in secure contexts with SW support; a relative URL keeps the deploy base path right.
   if (isWeb && window.isSecureContext && 'serviceWorker' in navigator) {
-    // The page reloads ONLY after the user clicked the update toast; a
-    // controllerchange from a first activation never reloads on its own.
+    // The page reloads ONLY after the user clicked the update toast.
     let userClickedReload = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (userClickedReload) window.location.reload();
@@ -1431,13 +1442,11 @@
       });
     };
     navigator.serviceWorker.register('sw.js').then((reg) => {
-      // A worker already waiting (toast ignored earlier) gets the toast again.
       if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
       reg.addEventListener('updatefound', () => {
         const worker = reg.installing;
         if (!worker) return;
         worker.addEventListener('statechange', () => {
-          // A worker "installed and waiting" under an older worker is the toast case.
           if (worker.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(worker);
         });
       });

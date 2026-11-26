@@ -72,7 +72,9 @@ const Qr = (() => {
     if (!ver) return null;
     const nData = dataCw(ver), nEcc = ECC[ver], nBlocks = BLOCKS[ver];
 
-    // Data bits: mode 0100, byte count, bytes, terminator, pad codewords.
+    // Data placement: two-column zigzag from the bottom right, skipping col 6.
+  // Mode 0100, byte count, bytes, terminator, pad codewords; split into blocks,
+  // EC added, interleave (short blocks first).
     const bits = [];
     const push = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
     push(4, 4);
@@ -88,7 +90,7 @@ const Qr = (() => {
       data[i] = b;
     }
 
-    // Split into blocks, add EC, interleave (short blocks first).
+    const blocks = [];
     const shortLen = Math.floor(nData / nBlocks), numShort = nBlocks - (nData % nBlocks);
     const parts = [];
     let p = 0;
@@ -138,8 +140,8 @@ const Qr = (() => {
       }
     }
 
-    // Format info: level L (01) + mask, BCH(15,5) code, mask 0x5412. Drawn as a
-    // placeholder before data placement so its modules stay function modules.
+    // Format info: level L (01) + mask, BCH(15,5) code, mask 0x5412. Drawn
+    // before data placement so its modules stay function modules.
     const formatBits = (mask) => {
       const d = 1 << 3 | mask; // L format bits = 01
       let rem = d;
@@ -149,8 +151,7 @@ const Qr = (() => {
     const drawFormat = (mask) => {
       const b = formatBits(mask);
       const bit = (i) => (b >>> i) & 1;
-      // First copy: wraps the top-left finder - up column 8 (bits 0-7), then
-      // right along row 8 (bits 8-14, right to left).
+      // First copy: up column 8 (bits 0-7), then right along row 8 (bits 8-14).
       for (let i = 0; i <= 5; i++) set(i, 8, !!bit(i));
       set(7, 8, !!bit(6));
       set(8, 8, !!bit(7));

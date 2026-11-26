@@ -40,8 +40,7 @@ const Engine = (() => {
 
   // ---------- rotation ----------
   // Quarter turns (0/90/180/270) apply before the aspect crop: the crop rect
-  // computes on the rotated frame, so a landscape shot turned a quarter
-  // develops portrait, and a 3:2 crop then frames the rotated shot 2:3.
+  // computes on the rotated frame; a 3:2 crop then frames the rotated shot 2:3.
   function rotated(src, deg) {
     const swap = deg === 90 || deg === 270;
     const c = mk(swap ? src.height : src.width, swap ? src.width : src.height);
@@ -243,8 +242,9 @@ const Engine = (() => {
   }
 
   // ---------- frames ----------
-  /** label: the edge-print film name; defaults to the house brand. */
-  function composeStrip(frames, startNum, label = 'PHOTOSET 400') {
+  /** label: the edge-print film name; defaults to the house brand. numTexts
+      overrides the printed frame numbers (half-frame A/B convention). */
+  function composeStrip(frames, startNum, label = 'PHOTOSET 400', numTexts) {
     const H = Math.max(...frames.map((f) => f.height));
     const ws = frames.map((f) => (f.width * H) / f.height);
     const band = H * 0.23, gap = H * 0.07, pad = gap;
@@ -285,13 +285,27 @@ const Engine = (() => {
       const n = startNum + i;
       x.fillStyle = 'rgba(236,160,58,0.92)';
       x.textAlign = 'center';
-      x.fillText(String(n), px + ws[i] / 2, TH - band * 0.13);
+      x.fillText(numTexts ? numTexts[i] : String(n), px + ws[i] / 2, TH - band * 0.13);
       if (i < frames.length - 1) x.fillText('▸' + n + 'A', px + ws[i] + gap / 2, TH - band * 0.13);
       x.textAlign = 'left';
       x.fillText(i % 2 ? '◂ SAFETY FILM' : label, px + ws[i] * 0.12, band * 0.13);
       px += ws[i] + gap;
     });
     return c;
+  }
+
+  // Half-frame: two vertical shots share one frame; the edge print numbers
+  // advance half a frame per shot, N A / N B, and a lone tail shot fills only
+  // its A position. Outputs keep the strip naming.
+  const halfPrint = (n, pair) => n + 'A' + (pair ? '/' + n + 'B' : '');
+  function composeHalfFrame(a, b, num, label) {
+    const H = Math.max(a.height, b ? b.height : 0);
+    const wa = (a.width * H) / a.height;
+    const wb = b ? (b.width * H) / b.height : 0;
+    const c = mk(Math.round(wa + wb), H), x = c.getContext('2d');
+    x.drawImage(a, 0, 0, wa, H);
+    if (b) x.drawImage(b, wa, 0, wb, H);
+    return composeStrip([c], num, label, [halfPrint(num, !!b)]);
   }
 
   function frameSuper8(f) {
@@ -471,5 +485,5 @@ const Engine = (() => {
     return m && m.date;
   }
 
-  return { renderLook, applyFrame, composeStrip, encode, exifDate, exifMeta, mk, ASPECTS };
+  return { renderLook, applyFrame, composeStrip, composeHalfFrame, halfPrint, encode, exifDate, exifMeta, mk, ASPECTS };
 })();

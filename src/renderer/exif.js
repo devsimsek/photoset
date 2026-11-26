@@ -1,11 +1,8 @@
 'use strict';
-/* Minimal EXIF writer. Canvas re-encodes strips every marker, so when the
-   photographer asks to keep EXIF, this writes the shot's story back into JPG
-   output: one APP1 segment holding IFD0 (Make, Model, ModifyDate, sub-IFD
-   pointers), the Exif IFD (DateTimeOriginal, ISO, ExposureTime, FNumber,
-   LensMake, LensModel) and, only on the explicit GPS toggle, a GPS IFD with
-   latitude and longitude. Fields the source lacks are skipped, never faked.
-   Pure bytes, no dependencies. */
+/* Minimal EXIF writer. Canvas re-encodes strips every marker, so Keep EXIF
+   writes the shot's story back into JPG output: one APP1 segment holding
+   IFD0, the Exif IFD and, only on the explicit GPS toggle, a GPS IFD. Fields
+   the source lacks are skipped, never faked. Pure bytes, no dependencies. */
 const Exif = (() => {
   function asciiDate(d) {
     const p = (n) => String(n).padStart(2, '0');
@@ -14,9 +11,7 @@ const Exif = (() => {
 
   const A = 2, S = 3, L = 4, R = 5; // TIFF field types: ASCII, SHORT, LONG, RATIONAL
 
-  // Serialized as little-endian TIFF: three IFDs (IFD0, Exif, GPS), then the
-  // values too big to sit inline (over 4 bytes) behind them. Returns null when
-  // there is nothing at all to write.
+  // Little-endian TIFF: IFD0, Exif and GPS IFDs, then out-of-line values.
   function tiff(e) {
     const u8 = (n) => new Uint8Array(n);
     const u16v = (n) => { const b = u8(2); new DataView(b.buffer).setUint16(0, n, true); return b; };
@@ -96,12 +91,11 @@ const Exif = (() => {
     return seg;
   }
 
-  /** bytes: Uint8Array of a JPEG. exif: the shot's story {date, make, model,
-      lensMake, lensModel, iso, exposure, fnumber, gps}, fields absent from the
-      source left unset. withGps: the explicit GPS toggle; coordinates are never
-      written without it. Returns a new Uint8Array with an EXIF APP1 inserted
-      after SOI, or after APP0 when the encoder wrote one. Anything that is not
-      a plain JPEG, or an empty story, goes back unchanged. */
+  /** bytes: JPEG Uint8Array. exif: the story {date, make, model, lensMake,
+      lensModel, iso, exposure, fnumber, gps}, absent fields unset. withGps:
+      the explicit toggle; coordinates are never written without it. Returns a
+      new Uint8Array with an EXIF APP1 inserted, or the input unchanged when
+      it is not a plain JPEG or the story is empty. */
   function stamp(bytes, exif, withGps) {
     if (!exif || bytes.length < 4) return bytes;
     const t = tiff(withGps ? exif : Object.assign({}, exif, { gps: null }));

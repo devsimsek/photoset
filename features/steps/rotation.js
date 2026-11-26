@@ -28,7 +28,7 @@ Then(/^the result is (\d+) wide by (\d+) tall$/, async ({ page }, w, h) => {
 
 const SPOT = { top: [0.5, 0.25], bottom: [0.5, 0.75], left: [0.25, 0.5], right: [0.75, 0.5] };
 
-Then(/^the result shows (red|blue) at the (top|bottom|left|right) and (red|blue) at the (top|bottom|left|right)$/,
+Then(/^the result shows (red|blue|green) at the (top|bottom|left|right) and (red|blue|green) at the (top|bottom|left|right)$/,
   async ({ page }, c1, w1, c2, w2) => {
     const d = await probeResult(page, [SPOT[w1], SPOT[w2]]);
     expect(isColour(c1, d.spots[0]), colourFail(c1, d.spots[0])).toBe(true);
