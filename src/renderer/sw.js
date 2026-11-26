@@ -1,22 +1,20 @@
-// Photoset Darkroom service worker. Plain JS, no dependencies; build-web.js
-// injects the build version into VERSION at copy time.
+// Photoset Darkroom service worker. Plain JS; build-web.js injects VERSION.
 'use strict';
 
 const VERSION = '__BUILD_VERSION__';
 const CACHE = 'photoset-shell-' + VERSION;
-// The RAW decoder's cache (ADR 0004): filled on first fetch, never at install;
-// it dies with its shell version.
+// The RAW decoder's cache (ADR 0004): filled on first fetch, never at install.
 const DECODER = 'photoset-decoder-' + VERSION;
 const DECODER_PATH = '/flashraw/';
 
-// The whole build shell; keep in sync with FILES in build/build-web.js. The
-// decoder wasm is NOT here: it joins cache-on-first-fetch under DECODER.
+// The build shell; keep in sync with FILES in build/build-web.js. The decoder
+// wasm is NOT here: it joins cache-on-first-fetch under DECODER.
 const SHELL = [
   'index.html', 'styles.css', 'app.js', 'engine.js', 'web-api.js',
   'exif.js', 'qr.js', 'pdf.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
 ];
 
-// Fetch-handler instrumentation for the BDD suite: the worker answers STATS.
+// Fetch instrumentation for the BDD suite: the worker answers STATS.
 let handled = 0;
 
 self.addEventListener('install', (e) => {
