@@ -162,9 +162,15 @@ After(async () => {
 // change on disk instead; the local server reads them per request.
 let stashedSw = null;
 
-function swDeployV2() {
+async function swDeployV2() {
   if (!stashedSw) stashedSw = fs.readFileSync('web-dist/sw.js', 'utf8');
-  fs.writeFileSync('web-dist/sw.js', stashedSw.replace(/const VERSION = '.*?';/, "const VERSION = 'update-test-v2';"));
+  // The built sw is minified (ADR 0005), so the version swap keys on the
+  // version STRING itself, not on a source-shaped declaration. The running
+  // worker reports its version through STATS; that exact string is unique in
+  // the file, so replacing every occurrence deploys genuinely new bytes.
+  const current = await swPageStats(sw.page);
+  if (current.version === 'timeout') throw new Error('running sw did not report its version; cannot deploy v2');
+  fs.writeFileSync('web-dist/sw.js', stashedSw.split(JSON.stringify(current.version)).join(JSON.stringify('update-test-v2')));
 }
 
 When('a new service worker version is waiting', async () => {

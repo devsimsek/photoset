@@ -1,7 +1,10 @@
-// Assembles the static web app (GitHub Pages) into web-dist/. No dependencies.
+// Assembles the static web app (GitHub Pages) into web-dist/. Minifies JS and
+// CSS with esbuild (ADR 0005, the one build dependency); source stays readable
+// in src/renderer/.
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const esbuild = require('esbuild');
 
 const root = path.join(__dirname, '..');
 const src = path.join(root, 'src', 'renderer');
@@ -51,10 +54,23 @@ for (const f of fs.readdirSync(fixtures)) {
 
 // The service worker gets a build version injected so its precache name
 // changes with the build; the browser reinstalls the SW whenever it differs.
+// Minify first (esbuild preserves string literals, so the placeholder
+// survives), then inject the version into the minified sw.
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+for (const f of FILES) {
+  if (!/\.(js|css)$/.test(f) || f === 'sw.js') continue;
+  const p = path.join(out, f);
+  const r = esbuild.transformSync(fs.readFileSync(p, 'utf8'), {
+    loader: f.endsWith('.css') ? 'css' : 'js',
+    minify: true,
+    legalComments: 'none',
+  });
+  fs.writeFileSync(p, r.code);
+}
+const swSource = fs.readFileSync(path.join(out, 'sw.js'), 'utf8');
+const swMin = esbuild.transformSync(swSource, { loader: 'js', minify: true, legalComments: 'none' }).code;
 const stamp = Date.now().toString(36);
-const swPath = path.join(out, 'sw.js');
-fs.writeFileSync(swPath, fs.readFileSync(swPath, 'utf8').replaceAll('__BUILD_VERSION__', `${pkg.version}-${stamp}`));
+fs.writeFileSync(path.join(out, 'sw.js'), swMin.replaceAll('__BUILD_VERSION__', `${pkg.version}-${stamp}`));
 fs.writeFileSync(path.join(out, '.nojekyll'), ''); // serve files as-is
 const kb = FILES.reduce((a, f) => a + fs.statSync(path.join(out, f)).size, 0) / 1024;
 let decoderKb = 0, decoderFiles = 0;
