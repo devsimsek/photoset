@@ -66,6 +66,13 @@ paths and never commit outside them.
 | PS-27 | RAW load path: DNG/CR3/ARW accepted, instant embedded preview, progress, abort | Done | `app.js`, `web-api.js`, `engine.js`, features/ | Commit `620db25`. Red proof: 4 failed pre-impl. Loaders accept .dng/.cr3/.arw; embedded preview instant, decode-on-demand then drop; roll change aborts via AbortController (proved by stats counting). Fixture: CC0 Blackmagic CinemaDNG + appended preview SubIFD, checksums in features/fixtures/README.md. Keep-EXIF for RAW writes the capture date when metadata carries one (fixture has none). |
 | PS-28 | Latency measurement + ADR 0004 verification (24 MP target) | Done | `docs/adr/0004-raw-decoding.md`, `docs/laws.md`, `docs/user-guide.md`, `docs/internals/raw.md` | Commit `e974c31`. 24 MP Ricoh GR III: 655-674 ms warm in Chromium (budget 5 s, 7x margin). Fixture: 71 ms. ADR unverified item moved to Verified. Nav gaps for ADR 0004 + internals/raw.md fixed in `6c356c7`. Remaining unverified, recorded: CR3/ARW in-browser (no clean CC0 fixture, 20-30 MB), FlashRaw mid-decode worker cancellation, JPEG XL DNG second binary. |
 
+## Post-1.0 QA pass (2026-11-26, adversarial review)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-29 | Dev server hardening + em dash sweep | Done | `build/serve-web.js`, `build/build-web.js`, `src/renderer/*` | Commits `2abc02c` + `8faf951`. Probe evidence: `GET /%zz` killed the process (URIError, uncaught in handler); now 400 and alive. Sibling dir read via `startsWith(root)` prefix bug (`web-dist-backup` served through `/../`); now root+sep check, 403. Ten em dashes removed from source and shipped strings. |
+| PS-30 | A 404 page never replaces the offline shell | Done | `sw.js`, features/ | Commit `fc99daf`. Red proof: after one navigation to a missing URL, offline boot served 'not found' (probe + failing scenario). GitHub Pages serves a full HTML 404, so any broken link poisoned installed apps. Navigate branch caches only `fresh.ok`. 82/82 green. |
+
 ## Future waves (planned, not ticketed yet)
 
 Ticketing happens when a wave starts. Scope may shift before then.
