@@ -364,8 +364,14 @@ const Engine = (() => {
       canvas.toBlob((b) => (b ? res(b) : rej(new Error('Encode failed: ' + format))), format, quality / 100));
   }
 
-  // ---------- EXIF capture date ----------
-  async function exifDate(blob) {
+  // ---------- EXIF metadata ----------
+  // Reads the first APP1 'Exif' segment: the capture date, the camera story
+  // (make, model, lens, ISO, exposure, aperture) and GPS coordinates. Returns
+  // null when the file carries no usable EXIF; fields the source lacks stay
+  // unset, never faked.
+  const EXIF_SIZES = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
+
+  async function exifMeta(blob) {
     try {
       const buf = await blob.slice(0, 196608).arrayBuffer();
       const v = new DataView(buf);
@@ -375,32 +381,74 @@ const Engine = (() => {
         const m = v.getUint16(o);
         if ((m & 0xff00) !== 0xff00) break;
         const len = v.getUint16(o + 2);
-        if (m === 0xffe1 && v.getUint32(o + 4) === 0x45786966) {
-          const t = o + 10, le = v.getUint16(t) === 0x4949;
-          const u16 = (p) => v.getUint16(p, le), u32 = (p) => v.getUint32(p, le);
-          const ifd = (off) => {
-            const n = u16(t + off), tags = {};
-            for (let i = 0; i < n; i++) { const e = t + off + 2 + i * 12; tags[u16(e)] = { count: u32(e + 4), at: e + 8 }; }
-            return tags;
-          };
-          const str = (tag) => {
-            const at = tag.count > 4 ? t + u32(tag.at) : tag.at;
-            let s = '';
-            for (let i = 0; i < Math.min(tag.count - 1, 32); i++) s += String.fromCharCode(v.getUint8(at + i));
-            return s;
-          };
-          const ifd0 = ifd(u32(t + 4));
-          let s = null;
-          if (ifd0[0x8769]) { const ex = ifd(u32(ifd0[0x8769].at)); if (ex[0x9003]) s = str(ex[0x9003]); }
-          if (!s && ifd0[0x0132]) s = str(ifd0[0x0132]);
-          const mm = s && s.match(/(\d{4}):(\d{2}):(\d{2})/);
-          return mm ? new Date(+mm[1], +mm[2] - 1, +mm[3]) : null;
-        }
+        if (m === 0xffe1 && v.getUint32(o + 4) === 0x45786966) return parseExif(v, o + 10);
         o += 2 + len;
       }
     } catch { /* no usable EXIF */ }
     return null;
   }
 
-  return { renderLook, applyFrame, composeStrip, encode, exifDate, mk, ASPECTS };
+  function parseExif(v, t) {
+    const le = v.getUint16(t) === 0x4949;
+    const u16 = (p) => v.getUint16(p, le), u32 = (p) => v.getUint32(p, le);
+    const ifd = (off) => {
+      const n = u16(t + off), tags = {};
+      for (let i = 0; i < n; i++) {
+        const e = t + off + 2 + i * 12;
+        const type = u16(e + 2), count = u32(e + 4);
+        const sz = (EXIF_SIZES[type] || 1) * count;
+        tags[u16(e)] = { type, count, at: sz <= 4 ? e + 8 : t + u32(e + 8) };
+      }
+      return tags;
+    };
+    const ascii = (tag) => {
+      if (!tag) return null;
+      let s = '';
+      for (let i = 0; i < Math.min(tag.count - 1, 64); i++) s += String.fromCharCode(v.getUint8(tag.at + i));
+      return s;
+    };
+    const rat = (tag) => tag ? [v.getUint32(tag.at, le), v.getUint32(tag.at + 4, le)] : null;
+    const dms = (tag) => {
+      if (!tag || tag.count < 3) return null;
+      const part = (i) => { const n = v.getUint32(tag.at + i * 8, le), d = v.getUint32(tag.at + i * 8 + 4, le); return d ? n / d : 0; };
+      return part(0) + part(1) / 60 + part(2) / 3600;
+    };
+    const ifd0 = ifd(u32(t + 4));
+    const ex = ifd0[0x8769] ? ifd(u32(ifd0[0x8769].at)) : null;
+    const meta = {};
+    const ds = (ex && ex[0x9003] && ascii(ex[0x9003])) || ascii(ifd0[0x0132]);
+    const mm = ds && ds.match(/(\d{4}):(\d{2}):(\d{2})/);
+    meta.date = mm ? new Date(+mm[1], +mm[2] - 1, +mm[3]) : null;
+    if (ifd0[0x010f]) meta.make = ascii(ifd0[0x010f]);
+    if (ifd0[0x0110]) meta.model = ascii(ifd0[0x0110]);
+    if (ex) {
+      if (ex[0xa433]) meta.lensMake = ascii(ex[0xa433]);
+      if (ex[0xa434]) meta.lensModel = ascii(ex[0xa434]);
+      if (ex[0x8827]) meta.iso = v.getUint16(ex[0x8827].at, le);
+      if (ex[0x829a]) meta.exposure = rat(ex[0x829a]);
+      if (ex[0x829d]) meta.fnumber = rat(ex[0x829d]);
+    }
+    if (ifd0[0x8825]) {
+      const g = ifd(u32(ifd0[0x8825].at));
+      const latRef = ascii(g[0x0001]), lonRef = ascii(g[0x0003]);
+      const lat = dms(g[0x0002]), lon = dms(g[0x0004]);
+      if (lat != null && lon != null && latRef && lonRef) {
+        meta.gps = {
+          lat: latRef[0] === 'S' || latRef[0] === 'W' ? -lat : lat,
+          latRef: latRef[0],
+          lon: lonRef[0] === 'S' || lonRef[0] === 'W' ? -lon : lon,
+          lonRef: lonRef[0],
+        };
+      }
+    }
+    return meta;
+  }
+
+  /** The capture date only: the parse the date stamp and the roll memory use. */
+  async function exifDate(blob) {
+    const m = await exifMeta(blob);
+    return m && m.date;
+  }
+
+  return { renderLook, applyFrame, composeStrip, encode, exifDate, exifMeta, mk, ASPECTS };
 })();

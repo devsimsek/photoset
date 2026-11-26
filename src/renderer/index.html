@@ -149,7 +149,10 @@
           <input type="number" data-k="capKB" data-num min="1" step="10" placeholder="Off" title="Max output size per photo, in KB">
         </div>
         <div class="row"><label>Keep EXIF</label>
-          <label class="switch" title="Write the capture date back into JPG output"><input type="checkbox" data-k="keepExif"><span></span></label>
+          <label class="switch" title="Write the shot's EXIF story back into JPG output"><input type="checkbox" data-k="keepExif"><span></span></label>
+        </div>
+        <div class="row" id="gpsExifRow"><label>GPS coordinates</label>
+          <label class="switch" title="Adds the shot's latitude and longitude to JPG output. Off by default: turn it on only when the location belongs in the file. Acts when Keep EXIF is on."><input type="checkbox" data-k="gpsExif"><span></span></label>
         </div>
         <div class="row"><label>Max size</label>
           <select data-k="maxEdge" data-num>

@@ -16,7 +16,7 @@
     aspect: 'orig', frame: 'none', date: false,
   };
   const LOOK_KEYS = Object.keys(BASE);
-  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg', keepExif: false };
+  const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg', keepExif: false, gpsExif: false };
   const EXT = { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/png': 'png' };
 
   const STOCKS = [
@@ -671,7 +671,8 @@
     const blob = await blobOf(p);
     const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
     if (!p.w) { p.w = bmp.width; p.h = bmp.height; }
-    if (!p.date) p.date = (await Engine.exifDate(blob)) || new Date(p.mtime);
+    if (!p.exif) p.exif = await Engine.exifMeta(blob); // the shot's story, or null
+    if (!p.date) p.date = (p.exif && p.exif.date) || new Date(p.mtime);
     return bmp;
   }
   // Bitmaps close themselves; decoded RAW canvases release their pixels by
@@ -1056,7 +1057,11 @@
           const blob = await encodeFits(canvas, { ...s, format: fmt });
           canvas.width = canvas.height = 0;
           let bytes = await blob.arrayBuffer();
-          if (s.keepExif && fmt === 'image/jpeg') bytes = Exif.stamp(new Uint8Array(bytes), group[0].date).buffer;
+          if (s.keepExif && fmt === 'image/jpeg') {
+            // The story the source carries; a RAW shot keeps just its date.
+            const story = group[0].exif || (group[0].date ? { date: group[0].date } : null);
+            bytes = Exif.stamp(new Uint8Array(bytes), story, s.gpsExif).buffer;
+          }
           const written = await api.writeFile(folder, name, bytes, fmt);
           const stripNum = String(written).match(/strip_(\d+)/);
           if (stripNum) {

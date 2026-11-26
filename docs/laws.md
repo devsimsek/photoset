@@ -61,6 +61,14 @@ pixel data.
   develop skips them. A fresh load of a different folder replaces the remembered
   roll instead of merging.
 
+## GPS coordinates never ship by default
+
+A developed file carries the shot's location only when the photographer turns
+the GPS toggle on. The toggle sits next to Keep EXIF, is labeled plainly, and
+stays off in every fresh session. Coordinates are written to JPG output only
+when Keep EXIF and the GPS toggle are both on and the source file carries
+coordinates. The app never invents, looks up or estimates a location.
+
 ## Originals are never touched
 
 The app reads your photos and writes results into a separate subfolder
