@@ -296,6 +296,13 @@
     toastTimer = setTimeout(() => $('#toast').classList.remove('on'), actionLabel ? 9000 : 4000);
   }
 
+  // The intake line: one visible line in the roll panel that reports what the
+  // load is doing right now (reading a folder's metadata, preparing shots) and
+  // goes away when the roll is ready. On a phone it is the answer to "did the
+  // whole folder open or did it stall?".
+  const showIntake = (text) => { const n = $('#intakeLine'); n.hidden = false; n.textContent = text; };
+  const hideIntake = () => { $('#intakeLine').hidden = true; };
+
   // ---------- controls ----------
   function buildStocks() {
     const box = $('#stocks');
@@ -409,11 +416,20 @@
   // ---------- roll ----------
   async function pickFolder() {
     if (state.busy) return;
-    try { await loadRoll(await api.pickFolder()); } catch (e) { toast('Could not open folder: ' + e.message); }
+    showIntake('Opening the folder…');
+    try {
+      const roll = await api.pickFolder();
+      if (!roll) { hideIntake(); return; }
+      await loadRoll(roll);
+    } catch (e) {
+      hideIntake();
+      toast('Could not open folder: ' + e.message);
+    }
   }
 
   async function loadRoll(roll) {
     if (!roll) return;
+    $('#intakeLine').hidden = true; // a new roll takes over the intake line
     if (!roll.files.length) { toast(`No photos found in “${roll.name}”`); return; }
     // Relink: a remembered roll re-attaches when at least half of its shots are
     // present in the picked folder by exact file name. The roll name is only a hint.
@@ -461,7 +477,7 @@
     $('#preview').hidden = false;
     updatePickUI();
     select(0);
-    genThumbs(state.rollToken);
+    schedulePrep(state.rollToken);
   }
 
   // ---------- picks ----------
@@ -531,27 +547,67 @@
     $('#rollFoot').style.whiteSpace = 'pre-line';
   }
 
+  // ---------- roll list: tiles render lazily ----------
+  // A whole phone's folder can hold thousands of shots; one live node set per
+  // photo never fully opens. The sheet renders RENDER_BATCH tiles up front and
+  // an IntersectionObserver on a sentinel renders more as the photographer
+  // scrolls near the end. Every shot stays selectable regardless of its tile:
+  // select() renders up to the shot when a keyboard walk outruns the window.
+  const RENDER_BATCH = 60;
+  let rollIO = null;
+
   function buildRollList() {
     const list = $('#rollList');
     list.replaceChildren();
-    for (const p of state.photos) {
-      const item = el('div', 'roll-item');
-      item.dataset.i = p.idx;
-      const thumb = el('div', 'ri-thumb');
-      const img = document.createElement('img');
-      img.alt = '';
-      thumb.append(img, el('span', 'dec-spin'));
-      const meta = el('div', 'ri-meta');
-      meta.append(el('div', 'ri-name', p.name), el('div', 'ri-size'));
-      const pick = el('button', 'ri-pick');
-      pick.title = 'Pick this shot (Space)';
-      pick.onclick = (e) => { e.stopPropagation(); togglePick(p.idx); };
-      item.append(pick, thumb, meta, el('div', 'ri-num'));
-      item.onclick = () => select(p.idx);
-      p.el = item;
-      updateItem(p);
-      list.append(item);
+    if (rollIO) { rollIO.disconnect(); rollIO = null; }
+    state.rendered = 0;
+    const sentinel = el('div', 'roll-sentinel');
+    state.sentinel = sentinel;
+    list.append(sentinel);
+    if (typeof IntersectionObserver === 'function') {
+      rollIO = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) renderMoreTiles();
+      }, { root: list, rootMargin: '240px' });
+      rollIO.observe(sentinel);
     }
+    renderMoreTiles();
+  }
+
+  function renderMoreTiles() { renderTiles(state.rendered + RENDER_BATCH); }
+
+  // Renders tiles up to n shots; the sentinel stays last so the observer keeps
+  // firing while shots remain, and leaves with it once every shot has a tile.
+  function renderTiles(n) {
+    const list = $('#rollList');
+    const end = Math.min(state.photos.length, n);
+    for (; state.rendered < end; state.rendered++) {
+      const p = state.photos[state.rendered];
+      list.insertBefore(makeTile(p), state.sentinel);
+    }
+    if (state.rendered >= state.photos.length && state.sentinel.isConnected) {
+      state.sentinel.remove();
+      if (rollIO) { rollIO.disconnect(); rollIO = null; }
+    }
+    schedulePrep(state.rollToken);
+  }
+
+  function makeTile(p) {
+    const item = el('div', 'roll-item');
+    item.dataset.i = p.idx;
+    const thumb = el('div', 'ri-thumb');
+    const img = document.createElement('img');
+    img.alt = '';
+    thumb.append(img, el('span', 'dec-spin'));
+    const meta = el('div', 'ri-meta');
+    meta.append(el('div', 'ri-name', p.name), el('div', 'ri-size'));
+    const pick = el('button', 'ri-pick');
+    pick.title = 'Pick this shot (Space)';
+    pick.onclick = (e) => { e.stopPropagation(); togglePick(p.idx); };
+    item.append(pick, thumb, meta, el('div', 'ri-num'));
+    item.onclick = () => select(p.idx);
+    p.el = item;
+    updateItem(p);
+    return item;
   }
   function updateItem(p) {
     if (!p.el) return;
@@ -705,23 +761,58 @@
     } catch (e) { console.warn('raw thumb refresh failed', p.name, e); }
   }
 
-  async function genThumbs(token) {
-    for (const p of state.photos) {
-      if (token !== state.rollToken) return;
-      if (p.thumb || p.remembered || p.missing) continue;
-      if (isRaw(p.name)) { await rawThumb(p, token); continue; }
-      try {
-        const bmp = await decode(p);
-        if (!previewCache.has(p.name) && previewCache.size < 24) cacheSource(p, bmp);
-        if (token !== state.rollToken) { dropSource(bmp); return; }
-        p.thumb = await thumbURL(bmp);
-        dropSource(bmp);
-        updateItem(p);
-        if (p.idx === state.sel) updateFrameInfo();
-      } catch (e) {
-        console.warn('thumb failed', p.name, e);
+  // ---------- preparing shots (thumbs + the intake line) ----------
+  // Preparing a shot means its thumbnail: a decode, a small JPEG blob URL, the
+  // tile update. Only shots with a tile are prepared, so a huge roll never
+  // decodes everything up front; scrolling renders more tiles and prep
+  // follows. The intake line shows the count while this runs, and every
+  // failure surfaces by name instead of a silent console entry.
+  let prepRunning = false, prepQueued = false, prepPromise = Promise.resolve();
+  const needPrep = (q) => q.el && !q.prepped && !q.prepping && !q.remembered && !q.missing;
+
+  function schedulePrep(token) {
+    if (!prepRunning) prepPromise = runPrep(token);
+    else prepQueued = true;
+  }
+
+  async function runPrep(token) {
+    prepRunning = true;
+    $('#intakeLine').hidden = false;
+    try {
+      let done = 0;
+      for (;;) {
+        if (token !== state.rollToken) return;
+        const p = state.photos.find(needPrep);
+        if (!p) break;
+        p.prepping = true;
+        done++;
+        $('#intakeLine').textContent = `Preparing ${done} / ${done + state.photos.filter(needPrep).length}…`;
+        try {
+          if (isRaw(p.name)) {
+            await rawThumb(p, token);
+          } else {
+            const bmp = await decode(p);
+            if (!previewCache.has(p.name) && previewCache.size < 24) cacheSource(p, bmp);
+            if (token !== state.rollToken) { dropSource(bmp); return; }
+            p.thumb = await thumbURL(bmp);
+            dropSource(bmp);
+            updateItem(p);
+            if (p.idx === state.sel) updateFrameInfo();
+          }
+        } catch (e) {
+          console.warn('prepare failed', p.name, e);
+          if (token === state.rollToken) toast(`Could not prepare ${p.name}: ${String(e.message || e).trim()}`);
+        } finally {
+          p.prepping = false;
+          p.prepped = true;
+        }
+        if (token !== state.rollToken) return;
+        await yieldUI();
       }
-      await yieldUI();
+    } finally {
+      prepRunning = false;
+      if (prepQueued) { prepQueued = false; schedulePrep(token); }
+      else if (token === state.rollToken) $('#intakeLine').hidden = true;
     }
   }
 
@@ -753,6 +844,7 @@
     dropRawSources(null);
     document.querySelectorAll('.roll-item.sel').forEach((n) => n.classList.remove('sel'));
     const p = state.photos[i];
+    if (p && !p.el) renderTiles(i + 1); // a keyboard walk can outrun the rendered window
     if (p.el) { p.el.classList.add('sel'); p.el.scrollIntoView({ block: 'nearest' }); }
     updateFrameInfo();
     schedulePreview();
@@ -773,7 +865,7 @@
     $('#frameInfo').replaceChildren(el('b', null, `${String(state.sel + 1).padStart(2, '0')} / ${String(state.photos.length).padStart(2, '0')}`), '  ·  ' + parts.join('  ·  '));
   }
 
-  let previewQueued = false, previewRunning = false;
+  let previewQueued = false, previewRunning = false, previewName = 'the shot';
   function schedulePreview() {
     if (!state.photos.length) return;
     previewQueued = true;
@@ -791,7 +883,7 @@
       }
     } catch (e) {
       console.error(e);
-      toast('Preview failed: ' + e.message);
+      toast(`Preview failed for ${previewName}: ${e.message}`);
     } finally {
       previewRunning = false;
       $('#spinner').classList.remove('on');
@@ -799,6 +891,7 @@
   }
   async function renderPreview() {
     const p = state.photos[state.sel];
+    previewName = p ? p.name : 'the shot';
     if (!p || p.remembered || p.missing) return;
     const s = state.s;
     let out;
@@ -1014,7 +1107,13 @@
   function hideOriginal() { if (state.lastOut) showCanvas(state.lastOut); }
 
   // ---------- wiring ----------
-  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, state, exportFilm, importFilm }; // debugging / smoke tests
+  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, state, exportFilm, importFilm, whenReady: () => prepPromise }; // debugging / smoke tests
+  // Intake progress from the bridge: the metadata reads report chunk by chunk.
+  window.__intakeLog = []; // accounting for the BDD suite and debugging
+  api.onIntakeProgress((done, total) => {
+    showIntake(total ? `Reading ${done} / ${total}…` : 'Reading the folder…');
+    window.__intakeLog.push(`${done}/${total}`);
+  });
   buildStocks();
   buildSliders();
   bindControls();
@@ -1024,6 +1123,12 @@
   $('#loadBtn').onclick = pickFolder;
   $('#emptyLoad').onclick = pickFolder;
   $('#rememberLoad').onclick = pickFolder;
+  // Reaching the bottom of the sheet renders more tiles, even mid-flick when
+  // the observer's margin has been outrun by the tiles it just rendered.
+  $('#rollList').addEventListener('scroll', () => {
+    const list = $('#rollList');
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 800) renderMoreTiles();
+  });
   $('#prevBtn').onclick = () => select(state.sel - 1);
   $('#nextBtn').onclick = () => select(state.sel + 1);
   $('#developBtn').onclick = () => develop(false);
@@ -1117,11 +1222,12 @@
     document.body.classList.remove('dragging');
     if (state.busy || !e.dataTransfer.files.length) return;
     try {
+      showIntake('Opening the drop…'); // sync: openDrop must be called before any await
       // web: openDrop must be called before any await, while the dropped items are still readable
       if (api.openDrop) { await loadRoll(await api.openDrop(e.dataTransfer)); return; }
       const p = api.pathForFile(e.dataTransfer.files[0]);
       if (p) await loadRoll(await api.openDir(p));
-    } catch (err) { toast('Could not open: ' + err.message); }
+    } catch (err) { hideIntake(); toast('Could not open: ' + err.message); }
   });
 
   // ---------- paste a photo ----------
@@ -1173,7 +1279,7 @@
     updateDevNote();
     updatePickUI();
     select(i);
-    genThumbs(state.rollToken);
+    schedulePrep(state.rollToken);
     toast(`Pasted ${name} added to “${state.roll.name}”`);
   }
 

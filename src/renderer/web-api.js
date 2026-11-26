@@ -14,6 +14,29 @@
   let roll = null;  // { name, dir: FileSystemDirectoryHandle|null, files: Map<name, File|FileSystemFileHandle> }
   let batch = null; // one develop run
 
+  // ---------- intake progress ----------
+  // A whole phone's folder can hold thousands of shots. The metadata reads run
+  // in bounded chunks (INTAKE_CHUNK in flight, a UI yield between chunks) and
+  // report through onIntakeProgress so the app can show a progress line; a
+  // single Promise.all over everything herds thousands of reads at once and
+  // starves the page.
+  const INTAKE_CHUNK = 64;
+  let onIntake = null;
+  const reportIntake = (done, total) => { if (onIntake) onIntake(done, total); };
+
+  // Runs jobs in bounded chunks with a UI yield between chunks, reporting
+  // progress; preserves job order in the results.
+  async function inChunks(jobs, run) {
+    const out = [];
+    for (let i = 0; i < jobs.length; i += INTAKE_CHUNK) {
+      const chunk = jobs.slice(i, i + INTAKE_CHUNK);
+      out.push(...await Promise.all(chunk.map(run)));
+      reportIntake(Math.min(i + INTAKE_CHUNK, jobs.length), jobs.length);
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    return out;
+  }
+
   // Same rule as the desktop app: never overwrite, for any extension.
   // strip_001.webp → next free number, anything else → "name (2).webp".
   function candidateName(name, attempt) {
@@ -25,14 +48,22 @@
   }
 
   // ---------- loading ----------
+  // The entries are listed first (cheap), then the metadata is read in
+  // chunks, so a huge folder never holds thousands of getFile() calls at once.
   async function fromDirHandle(dir) {
-    const files = new Map(), list = [];
+    const handles = [];
     for await (const [name, h] of dir.entries()) {
       if (h.kind !== 'file' || !isPhoto(name)) continue;
+      handles.push([name, h]);
+    }
+    handles.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    const files = new Map(), list = [];
+    await inChunks(handles, async ([name, h]) => {
       const f = await h.getFile();
       files.set(name, h);
       list.push({ name, size: f.size, mtime: f.lastModified });
-    }
+      return f;
+    });
     list.sort(byName);
     roll = { name: dir.name, dir, files };
     return { dir: dir.name, name: dir.name, files: list };
@@ -75,7 +106,7 @@
       const reader = entry.createReader(), out = [];
       const next = () => reader.readEntries(async (batchOf) => {
         if (!batchOf.length) {
-          try { resolve(await Promise.all(out.map((e) => new Promise((ok, no) => e.file(ok, no))))); } catch (err) { reject(err); }
+          try { resolve(await inChunks(out, (e) => new Promise((ok, no) => e.file(ok, no)))); } catch (err) { reject(err); }
           return;
         }
         for (const e of batchOf) if (e.isFile && isPhoto(e.name)) out.push(e);
@@ -247,6 +278,9 @@
   const api = {
     kind: 'web',
     canPickDir,
+    // The app registers a callback here: (done, total) => ... fires as the
+    // intake reads file metadata in chunks.
+    onIntakeProgress(fn) { onIntake = fn; },
 
     async pickFolder() {
       if (canPickDir) {
@@ -271,7 +305,9 @@
           const hs = (await Promise.all(handles)).filter(Boolean);
           const dir = hs.find((h) => h.kind === 'directory');
           if (dir) return fromDirHandle(dir);
-          return fromFiles(await Promise.all(hs.filter((h) => h.kind === 'file').map((h) => h.getFile())), 'dropped photos');
+          const fileHandles = hs.filter((h) => h.kind === 'file');
+          reportIntake(0, fileHandles.length);
+          return fromFiles(await inChunks(fileHandles, (h) => h.getFile()), 'dropped photos');
         }
         const dirEntry = entries.find((e) => e.isDirectory);
         if (dirEntry) return fromFiles(await readDirEntry(dirEntry), dirEntry.name);

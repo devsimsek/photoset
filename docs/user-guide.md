@@ -160,6 +160,14 @@ wide screen with no sideways scrolling.
   desktop; only the hit areas grow.
 - Loading works by tapping LOAD ROLL or CHOOSE FOLDER; phones pick photos
   instead of folders (the browser decides).
+- **Huge rolls stay usable.** A folder holding a whole phone's photos opens
+  without choking: the contact sheet renders its tiles lazily as you scroll,
+  the shots' metadata is read in batches of 64 so the page never stalls on
+  thousands of files at once, and a progress line at the bottom of the sheet
+  shows the count while the roll is read and prepared. The line goes away when
+  the roll is ready. A shot that cannot be read is never swallowed: a toast
+  names it, it stays listed with its size, and the rest of the roll loads and
+  develops normally.
 - **Paste a photo.** Copy an image anywhere on the device and paste it into
   the darkroom: it joins the current roll (or starts a new roll called
   *pasted*). The roll loads JPG photos, so a pasted PNG is re-encoded to JPG
