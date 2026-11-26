@@ -54,7 +54,7 @@
   ];
   // rotate: OPTIONAL schema v1 look key, default 0; old films still validate.
   const ROTS = [0, 90, 180, 270];
-  const FRAMES = ['none', '35mm', 'super8', 'instant', 'halfframe'];
+  const FRAMES = ['none', '35mm', 'super8', 'instant', 'halfframe', 'sprocket'];
   const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
   const HEX = /^#[0-9a-f]{6}$/i;
   const films = loadFilms();
@@ -131,7 +131,6 @@
     } catch { /* storage blocked or full: memory is best effort */ }
   }
 
-  // Boot with a remembered roll: names come back, pixels do not.
   function showRememberedRoll() {
     const meta = rememberedMeta();
     if (!meta || !meta.photos.length) return;
@@ -237,7 +236,6 @@
     toast(`Film renamed to “${f.name}”`);
   }
   // ---------- films travel: link, QR, boot import ----------
-  // The film rides in the hash as base64url of its schema v1 JSON.
   function filmB64(film) {
     const bytes = new TextEncoder().encode(JSON.stringify(film));
     let s = '';
@@ -248,7 +246,6 @@
     const f = film || activeFilm() || exportFilm();
     return location.origin + location.pathname + '#film=' + filmB64(f);
   }
-  // A #film= hash imports first, then clears; invalid payloads refuse by name.
   function bootFilmHash() {
     const m = location.hash.match(/^#film=([A-Za-z0-9_-]+)$/);
     if (!m) return;
@@ -571,7 +568,6 @@
   }
 
   // ---------- roll list: tiles render lazily ----------
-  // Lazy tiles: RENDER_BATCH up front, sentinel-driven on scroll, select() renders ahead.
   const RENDER_BATCH = 60;
   let rollIO = null;
 
@@ -635,7 +631,6 @@
     if (p.out != null) size.append(' → ', el('span', 'out', fmtBytes(p.out)));
     p.el.classList.toggle('remembered', !!p.remembered);
     p.el.classList.toggle('missing', !!p.missing);
-    // RAW tiles spin until their real decode replaces the embedded preview.
     p.el.querySelector('.ri-thumb').classList.toggle('decoding', isRaw(p.name) && p.rawState !== 'decoded');
     p.el.title = p.missing ? 'missing from folder'
       : p.remembered ? 'remembered · re-pick the folder to restore' : '';
@@ -650,7 +645,6 @@
   }
 
   // ---------- decoding ----------
-  // RAW decodes feed the SAME pipeline: decodeRaw hands back a canvas, the rest is renderLook.
   let rawAbort = new AbortController();
   const rawSignal = () => rawAbort.signal;
   const isRaw = (name) => api.isRaw(name);
@@ -686,7 +680,6 @@
     return bmp;
   }
   // Bitmaps close themselves; decoded RAW canvases release by being zeroed.
-  // One decoded RAW shot may live in memory per view.
   const dropSource = (b) => {
     if (!b) return;
     if (b.close) b.close();
@@ -708,10 +701,11 @@
     while (previewCache.size > 24) previewCache.delete(previewCache.keys().next().value);
     return c;
   }
+  // RAW: the in-view shot keeps its full decode, others are dropped.
   async function getSource(p) {
     const hit = previewCache.get(p.name);
     if (hit) { previewCache.delete(p.name); previewCache.set(p.name, hit); return hit; }
-    // RAW: the in-view shot keeps its full decode, every other shot's is dropped.
+    // RAW: the in-view shot keeps its full decode, others are dropped.
     if (isRaw(p.name)) {
       let full = p.rawSrc;
       if (!full) {
@@ -725,7 +719,6 @@
     try { return cacheSource(p, bmp); } finally { dropSource(bmp); }
   }
 
-  // 136x100 cover thumb as a JPEG blob URL; works for bitmaps and canvases.
   async function thumbURL(src) {
     const t = Engine.mk(136, 100), x = t.getContext('2d');
     const s = Math.max(136 / src.width, 100 / src.height);
@@ -767,7 +760,6 @@
   }
 
   // ---------- preparing shots (thumbs + the intake line) ----------
-  // Preparing a shot means its thumbnail; failures surface by name.
   let prepRunning = false, prepQueued = false, prepPromise = Promise.resolve();
   const needPrep = (q) => q.el && !q.prepped && !q.prepping && !q.remembered && !q.missing;
 
@@ -1428,7 +1420,6 @@
   }
 
   // ---------- service worker (web builds only) ----------
-  // Registered only in secure contexts with SW support; a relative URL keeps the deploy base path right.
   if (isWeb && window.isSecureContext && 'serviceWorker' in navigator) {
     // The page reloads ONLY after the user clicked the update toast.
     let userClickedReload = false;

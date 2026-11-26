@@ -159,6 +159,15 @@ composes alone, half filled, printing only its **A** position. Outputs name
 themselves `strip_NNN` and share the roll's strip numbering, so a half-frame
 batch continues where the last strip left off.
 
+## Sprocket panorama
+
+Set the frame to *Sprocket panorama* and the develop renders wide, spanning
+the full film width: the sprocket-hole rows sit inside the picture, top and
+bottom, with the dark film base showing through the holes. The look forces
+the panorama ratio automatically (3:1), whatever the Crop select says, and
+each shot develops as its own sprocket frame, so a batch produces one frame
+per shot like single-frame 35mm does.
+
 ## Saving
 
 - **Chrome / Edge (desktop).** The app saves into a subfolder of the roll folder,

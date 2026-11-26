@@ -4,7 +4,7 @@
    Grain draws from the same seeded RNG (keyed by the file's name) as leak and
    flicker, so a develop with any sliders reproduces byte for byte. */
 const Engine = (() => {
-  const ASPECTS = { orig: 0, '3:2': 1.5, '4:3': 4 / 3, '5:4': 1.25, '1:1': 1, '16:9': 16 / 9, cine: 2.39, instant: 62 / 46 };
+  const ASPECTS = { orig: 0, '3:2': 1.5, '4:3': 4 / 3, '5:4': 1.25, '1:1': 1, '16:9': 16 / 9, cine: 2.39, instant: 62 / 46, sprocket: 3 };
 
   function mk(w, h) {
     const c = document.createElement('canvas');
@@ -209,11 +209,13 @@ const Engine = (() => {
       crop centers inside it. */
   function renderLook(src, meta, s, edge, aspectOverride, region) {
     if (s.rotate) src = rotated(src, s.rotate);
+    // Sprocket panorama: the look forces the full-film-width 3:1 ratio.
+    const aspect = s.frame === 'sprocket' ? 'sprocket' : (aspectOverride || s.aspect);
     let frame = { x: 0, y: 0, w: src.width, h: src.height };
     if (region) {
       frame = { x: region.x * src.width, y: region.y * src.height, w: region.w * src.width, h: region.h * src.height };
     }
-    const cr0 = cropRect(frame.w, frame.h, aspectOverride || s.aspect);
+    const cr0 = cropRect(frame.w, frame.h, aspect);
     const cr = { x: frame.x + cr0.x, y: frame.y + cr0.y, w: cr0.w, h: cr0.h };
     const outLong = Math.min(edge || Infinity, Math.max(cr.w, cr.h));
     const sc = outLong / Math.max(cr.w, cr.h);
@@ -387,10 +389,28 @@ const Engine = (() => {
     return c;
   }
 
+  // Sprocket panorama: the sprocket-hole rows punch through the picture,
+  // film base showing, using the composeStrip proportions inverted.
+  function frameSprocket(f) {
+    const w = f.width, h = f.height;
+    const pitch = h * 0.198, pw = h * 0.117, ph = h * 0.0825, pr = ph * 0.25, inset = h * 0.055;
+    const c = mk(w, h), x = c.getContext('2d');
+    x.drawImage(f, 0, 0);
+    x.fillStyle = '#14100c';
+    x.beginPath();
+    for (let px = pitch * 0.3; px < w; px += pitch) {
+      x.roundRect(px, inset, pw, ph, pr);
+      x.roundRect(px, h - inset - ph, pw, ph, pr);
+    }
+    x.fill();
+    return c;
+  }
+
   function applyFrame(c, s, index, label) {
     if (s.frame === '35mm') return composeStrip([c], index + 1, label);
     if (s.frame === 'super8') return frameSuper8(c);
     if (s.frame === 'instant') return frameInstant(c);
+    if (s.frame === 'sprocket') return frameSprocket(c);
     return c;
   }
 
