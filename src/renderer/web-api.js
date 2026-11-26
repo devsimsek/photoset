@@ -113,7 +113,7 @@
   const CRC = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
   function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
 
-  // Minimal ZIP writer (stored, no compression — JPEGs don't shrink further).
+  // Minimal ZIP writer (stored, no compression; JPEGs don't shrink further).
   function makeZip(items) {
     const enc = new TextEncoder(), parts = [], central = [], now = new Date();
     const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);

@@ -261,13 +261,13 @@
   // rAF stalls when the window is hidden/minimised, so background work yields with a macrotask instead
   const yieldUI = () => new Promise((r) => setTimeout(r, 0));
   function fmtBytes(n) {
-    if (!isFinite(n)) return '—';
+    if (!isFinite(n)) return '-';
     if (n < 1024) return Math.round(n) + ' B';
     if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
     if (n < 1024 ** 3) return (n / 1024 / 1024).toFixed(1) + ' MB';
     return (n / 1024 ** 3).toFixed(2) + ' GB';
   }
-  const pct = (r) => (r <= 1 ? `−${Math.round((1 - r) * 100)}%` : `+${Math.round((r - 1) * 100)}%`);
+  const pct = (r) => (r === 1 ? '±0%' : r <= 1 ? `−${Math.round((1 - r) * 100)}%` : `+${Math.round((r - 1) * 100)}%`);
   const safeFolder = (v) => String(v || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().replace(/^\.+$/, '') || 'developed';
   const stripAspect = (s) => (s.aspect === 'orig' ? '3:2' : s.aspect);
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
@@ -908,7 +908,7 @@
       $('#estAll').textContent = `${fmtBytes(total)} → ≈${fmtBytes(total * ratio)}`;
     } catch (e) {
       console.error(e);
-      if (seq === estSeq) $('#estOne').textContent = '—';
+      if (seq === estSeq) $('#estOne').textContent = '-';
     }
   }
 

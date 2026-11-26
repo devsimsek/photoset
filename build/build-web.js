@@ -24,7 +24,7 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 for (const f of FILES) {
   const from = path.join(src, f);
-  if (!fs.existsSync(from)) throw new Error(`missing ${f} — run "node build/make-icon.js" first if it is icon.png`);
+  if (!fs.existsSync(from)) throw new Error(`missing ${f}: run "node build/make-icon.js" first if it is icon.png`);
   fs.copyFileSync(from, path.join(out, f));
 }
 // The decoder directory ships only when the package is installed; its exact
@@ -34,7 +34,7 @@ const frOut = path.join(out, FLASHRAW);
 fs.mkdirSync(frOut, { recursive: true });
 for (const f of FLASHRAW_DIST) {
   const from = path.join(pkgDir, 'dist', f);
-  if (!fs.existsSync(from)) throw new Error(`flashraw dist is missing ${f} — the package layout changed, update FLASHRAW_DIST`);
+  if (!fs.existsSync(from)) throw new Error(`flashraw dist is missing ${f}: the package layout changed, update FLASHRAW_DIST`);
   fs.copyFileSync(from, path.join(frOut, f));
 }
 

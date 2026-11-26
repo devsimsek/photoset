@@ -1,5 +1,5 @@
 'use strict';
-/* Photoset Darkroom — image engine.
+/* Photoset Darkroom - image engine.
    Everything runs on canvas: crop → soften → colour grade → light leak → vignette → date stamp → grain → frame. */
 const Engine = (() => {
   const ASPECTS = { orig: 0, '3:2': 1.5, '4:3': 4 / 3, '5:4': 1.25, '1:1': 1, '16:9': 16 / 9, cine: 2.39, instant: 62 / 46 };
