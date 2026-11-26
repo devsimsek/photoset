@@ -109,12 +109,13 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-37 | Vendored minimal PDF writer + ADR 0005 | Open | new module, `build-web.js` FILES, docs/adr | |
-| PS-38 | Contact-sheet PDF export | Open | `engine.js`, `app.js`, features/ | |
-| PS-39 | Rotate 90 degrees | Open | `engine.js`, `app.js` | |
-| PS-40 | Free crop | Open | `engine.js`, `app.js`, roll metadata | |
-| PS-41 | Half-frame mode | Open | `engine.js`, `app.js` | |
-| PS-42 | Sprocket-panorama mode | Open | `engine.js` | |
+| PS-38 | Contact-sheet PDF export | Done | `app.js`, `index.html`, features/ | Commit `9299559`. Red proof: 6 failed pre-impl (printContactSheet absent). A4 portrait, max 2 strips per page, proof edges at 1200 px q75 (measured: 1600/80 hit 8.2 MB on pathological noise, tightened). 12-shot roll: 0.65 MB photographic, 5.04 MB worst case. Prints to prints/ or download through the normal never-overwrite path; never advances the strip high-water mark. 128/128 final. |
+| PS-37 | Vendored minimal PDF writer + ADR 0005 | Done | `pdf.js` (new), `build-web.js` FILES, `index.html`, features/ | Commit `b2dd39b`. Red proof: 4 failed pre-impl (Pdf undefined). PDF 1.4, A4, DCTDecode JPEG passthrough, core fonts, ASCII escaping; xref offsets verified by the suite's own parser. ~2.5 KB minified, zero dependencies. ADR 0005 (minification) committed separately at `62f33be`; this ADR covers the writer's scope. |
+| PS-38 | Contact-sheet PDF export | Done | `app.js`, `index.html`, features/ | Commit `9299559`. Red proof: 6 failed pre-impl (printContactSheet absent). A4 portrait, max 2 strips per page, proof edges at 1200 px q75 (measured: 1600/80 hit 8.2 MB on pathological noise, tightened). 12-shot roll: 0.65 MB photographic, 5.04 MB worst case. Prints to prints/ or download through the normal never-overwrite path; never advances the strip high-water mark. 128/128 final. |
+| PS-39 | Rotate 90 degrees | Done | `engine.js`, `app.js`, features/ | Commit `5fad6f0`. Red proof: 5 failed pre-impl. Rotation before aspect crop (landscape turns to portrait under 3:2); optional `rotate` schema key with default 0, v1 films still import (pinned). 105/105 at commit. |
+| PS-40 | Free crop | Done | `engine.js`, `app.js`, roll metadata | Commit `3eb2efc`. Red proof: 5 failed pre-impl. One coordinate space: fractions of the ROTATED frame, documented in renderLook's contract comment; crop survives reload and relink; composes with rotation and aspect. 111/111 at commit. |
+| PS-41 | Half-frame mode | Done | `engine.js`, `app.js` | Commit `a9f0e50`. Red proof: 4 failed pre-impl. `N A / N B` edge print convention, odd final shot composes alone; shares the roll's strip numbering and high-water mark. 115/115 at commit. |
+| PS-42 | Sprocket-panorama mode | Done | `engine.js` | Commit `512ddf8`. Red proof: 3 failed pre-impl. composeStrip sprocket geometry inverted into the picture, 3:1 ratio forced; pixel-probe pinned. Comment-budget pass on sw.js adopted separately (`6a0f5e0`, verified comment-only). 118/118 at commit. |
 | PS-43 | SBOM per release tag (CycloneDX) | Done | `build/sbom.js`, `package.json`, `pages.yml`, mkdocs nav | Commit `62f33be`. Hand-rolled CycloneDX 1.5 generator (42 components: lockfile tree + first-party engine/qr/exif/zip); ships as /sbom.cdx.json with every deploy, live and parsing. Version drift found while wiring it: package.json read 0.0.1 through seven tags; bumped to 1.1.0, lockstep with tags is now the contract. |
 
 ## v1.3: colorist / LUT (planned)
