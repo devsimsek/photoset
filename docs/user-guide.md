@@ -186,6 +186,16 @@ wide screen with no sideways scrolling.
   through the canvas at paste time, and any other format is refused with a
   toast naming the format.
 
+## Share photos into Photoset
+
+Install Photoset and it shows up in your system's share sheet: share a photo
+from any app (gallery, files, camera) and choose Photoset Darkroom. The shared
+shot joins the current roll - or starts one - and runs the same intake as a
+paste, so a shared PNG is re-encoded to JPG and anything else is refused with
+a toast naming the format. A share that carries no usable photos is answered
+with a toast that says so, never silence. The shared file travels through the
+app's own service worker on your device; it never leaves it.
+
 ## Keyboard
 
 | Key | What it does |

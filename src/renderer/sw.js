@@ -55,10 +55,31 @@ self.addEventListener('message', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Only GET is ever intercepted; POST/PUT/DELETE pass through untouched.
-  if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
+
+  // Web Share Target: shared photos arrive as a multipart POST to the action
+  // (the app root). The worker answers with a redirect to the shell and hands
+  // the files to the page, where they run the same intake as a paste. The
+  // POST itself never touches the cache.
+  if (e.request.method === 'POST' && url.pathname === new URL('./', self.location).pathname) {
+    handled++;
+    e.respondWith(Response.redirect(new URL('./', self.location).href, 303));
+    e.waitUntil((async () => {
+      let files = [];
+      try {
+        files = [...(await e.request.formData()).getAll('photos')].filter((f) => f && typeof f.arrayBuffer === 'function');
+      } catch { /* no usable form data: the page answers with a named toast */ }
+      const client = (e.resultingClientId && await self.clients.get(e.resultingClientId))
+        || (e.clientId && await self.clients.get(e.clientId))
+        || (await self.clients.matchAll({ type: 'window' }))[0];
+      if (client) client.postMessage({ type: 'share', files });
+    })());
+    return;
+  }
+
+  // Only GET is ever intercepted beyond this point; POST/PUT/DELETE pass through untouched.
+  if (e.request.method !== 'GET') return;
 
   // Decoder assets: cache-first with network fallback, filled on first fetch
   // (never precached at install). The decoder's glue imports and the wasm

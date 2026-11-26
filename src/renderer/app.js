@@ -1299,6 +1299,30 @@
     (async () => { for (const f of files) await pastePhoto(f); })();
   });
 
+  // ---------- shared photos ----------
+  // An installed Photoset is a share target. Chrome delivers shared files as a
+  // multipart POST to the share_target action; the service worker hands them
+  // here and they run the same intake as a paste. A share launch with no
+  // usable files is answered with a toast that names the problem.
+  function intakeShared(files) {
+    const usable = (files || []).filter(Boolean);
+    if (!usable.length) { toast('The share carried no photos the roll could load'); return; }
+    (async () => { for (const f of usable) await pastePhoto(f); })();
+  }
+  if (window.launchQueue) {
+    window.launchQueue.setConsumer((launch) => {
+      const files = launch && launch.files ? [...launch.files].filter(Boolean) : [];
+      if (files.length) intakeShared(files);
+      // A bare launch only opens the app; a share launch with nothing usable answers.
+      else if (launch && launch.targetURL) toast('The share carried no photos the roll could load');
+    });
+  }
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'share') intakeShared(e.data.files);
+    });
+  }
+
   // ---------- service worker (web builds only) ----------
   // Registered only in secure contexts with SW support, so file:// and plain
   // non-SW browsers skip this silently. The relative URL keeps the registration
