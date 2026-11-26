@@ -37,3 +37,4 @@ nav:
       - ADR 0002 - Gherkin BDD contract: adr/0002-gherkin-bdd-contract.md
       - ADR 0003 - Single Pages site: adr/0003-single-pages-site.md
       - ADR 0004 - In-browser RAW decoding: adr/0004-raw-decoding.md
+      - ADR 0005 - Build minification: adr/0005-build-minification.md
