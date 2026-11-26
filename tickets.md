@@ -28,7 +28,7 @@ paths and never commit outside them.
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
 | PS-12 | Film schema v1 + import/export (file, paste, download, copy) | Done | `app.js`, `engine.js`, `index.html`, features/ | Commit `9b64434`. Red proof: 5 failed pre-impl. 25/25 green. `validateFilm` refuses unknown schema, out-of-range sliders (SLIDERS table), non-hex colors, unknown aspect/frame/dateFmt. Docs: user-guide + internals/film-schema.md. |
-| PS-13 | Film library: save, rename, delete, edit reopens, persistence | Done | `app.js`, features/ | Commit `7809e9c`. Red proof: 7 failed pre-impl. 32/32 green. `darkroom.films` localStorage, re-validated on load; built-ins never mutate; byte-identical develop after reload (grain-0 film; engine grain uses Math.random, not the seeded RNG). |
+| PS-13 | Film library: save, rename, delete, edit reopens, persistence | Done | `app.js`, features/ | Commit `7809e9c`. Red proof: 7 failed pre-impl. 32/32 green. `darkroom.films` localStorage, re-validated on load; built-ins never mutate; byte-identical develop after reload (grain-0 film; grain was unseeded then, seeded since PS-33). |
 | PS-14 | Studio editor UI + film name on the strip edge print | Done | `app.js`, `engine.js`, `index.html`, `styles.css` | Commit `826a02c`. Red proof: 1 failed pre-impl. 35/35 green. `composeStrip` label param, default 'PHOTOSET 400' unchanged; custom films print their name. |
 | PS-15 | MkDocs theme: switch Material to shadcn | Done | `mkdocs.yml`, `.github/workflows/pages.yml` | Commits `39b25b8` (ci) + `4ffafe4` (theme). Strict shadcn build exit 0. Note: three Pages deploys failed mid-wave with 'Unrecognised theme name: material' (CI installed shadcn before mkdocs.yml switched); fixed forward by PS-15. |
 | PS-15a | AGENTS.md refresh for new commands/contracts | Done (on disk, no commit) | `AGENTS.md` (on disk, no commit) | Owner policy: gitignored. Refreshed through Wave 7: rolls, films, sw version injection, grain non-determinism, batch error shape, keyboard, paste, flashraw as the one runtime dependency. |
@@ -100,10 +100,10 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-33 | Deterministic grain (byte-exact develop law) | Open | `engine.js`, docs | |
-| PS-34 | Full EXIF carry; GPS stays default-off | Open | `exif.js`, `app.js`, docs | |
-| PS-35 | Web Share Target: share photos into Photoset | Open | `manifest.webmanifest`, `app.js`, features/ | |
-| PS-36 | Film as URL + QR (rides on PS-33) | Open | `app.js`, features/ | |
+| PS-33 | Deterministic grain (byte-exact develop law) | Done | `engine.js`, docs | Commit `016a01e`. Red proof: byte-equality scenario failed pre-impl (Math.random). grain() draws the seeded stream; instant paper grain uses a constant seed. AGENTS.md gotcha and engine.md paragraph updated at integration. |
+| PS-34 | Full EXIF carry; GPS stays default-off | Done | `exif.js`, `app.js`, docs | Commit `aadc5f7`. Red proof: Make/Model and GPS scenarios failed pre-impl. Three-IFD writer (IFD0 + Exif + GPS); writer and checker are independent implementations. GPS toggle default off, law in docs/laws.md. |
+| PS-35 | Web Share Target: share photos into Photoset | Done | `manifest.webmanifest`, `sw.js`, `app.js`, features/ | Commit `0897f9d`. Red proof: no share_target, no launch consumer. Deviation with sources: files require POST + multipart per Chrome's documented contract, not the GET the ticket sketched; SW answers the POST with a redirect and hands files to the paste intake. |
+| PS-36 | Film as URL + QR (rides on PS-33) | Done | `app.js`, `qr.js` (new), features/ | Commit `1b0a0f7`. Red proof: 4 failed pre-impl. QR encoder verified module-for-module against nayuki's C reference at all 8 masks plus jsQR decode of 6 payloads (caught a bogus alignment pattern and transposed format bits pre-ship). Byte-identical develop asserted across a shared link. 100/100 final. |
 
 ## v1.2: darkroom print (planned)
 

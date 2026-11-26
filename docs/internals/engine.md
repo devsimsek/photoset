@@ -55,8 +55,8 @@ header, no library), falling back to the file's modification time.
 
 ## Seeded RNG
 
-The random choices (leak position, colour, count; flicker amount) come from a
+The random choices (leak position, colour, count; flicker amount; grain) come from a
 seeded generator keyed by the file name: `hash` is FNV-1a over the name, `seeded`
-is a mulberry32-style PRNG. The same file name produces the same leak and
-flicker on every develop, so re-developing a roll gives stable results and tests
-can pin exact output. Grain is the one unseeded step; it is pure texture.
+is a mulberry32-style PRNG. The same file name produces the same leak, flicker, and
+grain on every develop, so re-developing a roll gives stable results and tests
+can pin exact output byte for byte, every slider included.
