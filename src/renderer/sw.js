@@ -18,7 +18,7 @@ const DECODER_PATH = '/flashraw/';
 // cache-on-first-fetch in the DECODER cache when a RAW file is first decoded.
 const SHELL = [
   'index.html', 'styles.css', 'app.js', 'engine.js', 'web-api.js',
-  'exif.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
+  'exif.js', 'qr.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
 ];
 
 // Fetch-handler instrumentation for the BDD suite and debugging: the worker

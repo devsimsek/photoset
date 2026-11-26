@@ -206,6 +206,13 @@
     <label class="dlg-field">Film JSON <textarea id="filmJson" rows="9" spellcheck="false" placeholder="Paste a film JSON here"></textarea></label>
     <label class="dlg-field">or choose a file <input id="filmFile" type="file" accept=".json,application/json"></label>
   </div>
+  <div id="filmShareFields" hidden>
+    <div class="dlg-actions share-actions">
+      <button class="btn ghost" id="copyLinkBtn" type="button">COPY LINK</button>
+    </div>
+    <canvas id="filmQr" hidden></canvas>
+    <p class="dlg-note">Long-press or right-click the QR to save it as an image.</p>
+  </div>
   <div class="dlg-actions">
     <button class="btn ghost" id="filmCancel" type="button">CANCEL</button>
     <button class="btn primary" id="filmOk" type="button">OK</button>
@@ -214,6 +221,7 @@
 
 <script src="engine.js"></script>
 <script src="exif.js"></script>
+<script src="qr.js"></script>
 <script src="web-api.js"></script>
 <script src="app.js"></script>
 </body>

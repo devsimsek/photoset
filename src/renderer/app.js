@@ -237,8 +237,37 @@
     syncControls();
     toast(`Film renamed to “${f.name}”`);
   }
-  function saveOverFilm() {
-    const f = activeFilm();
+  // ---------- films travel: link, QR, boot import ----------
+  // The film rides in the address hash as base64url of its schema v1 JSON.
+  // The link is the app's own address, so opening it imports the film on boot.
+  function filmB64(film) {
+    const bytes = new TextEncoder().encode(JSON.stringify(film));
+    let s = '';
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function filmLink(film) {
+    const f = film || activeFilm() || exportFilm();
+    return location.origin + location.pathname + '#film=' + filmB64(f);
+  }
+  // A #film= hash imports before anything else, then the hash is cleared so a
+  // reload does not re-import. Invalid payloads refuse by name, exactly like a
+  // file import, and the hash is cleared all the same.
+  function bootFilmHash() {
+    const m = location.hash.match(/^#film=([A-Za-z0-9_-]+)$/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    let json;
+    try {
+      const bin = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
+      json = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    } catch { toast('Refused: the film link is not valid base64'); return; }
+    const r = importFilm(json);
+    if (r.error) { toast('Refused: ' + r.error); return; }
+    toast(`Film “${singleLine(r.film.name)}” imported from the link`);
+  }
+
+  function saveOverFilm() {    const f = activeFilm();
     if (!f) return;
     f.look = lookSnapshot();
     persistFilms();
@@ -1112,7 +1141,7 @@
   function hideOriginal() { if (state.lastOut) showCanvas(state.lastOut); }
 
   // ---------- wiring ----------
-  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, whenReady: () => prepPromise }; // debugging / smoke tests
+  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, filmLink, whenReady: () => prepPromise }; // debugging / smoke tests
   // Intake progress from the bridge: the metadata reads report chunk by chunk.
   window.__intakeLog = []; // accounting for the BDD suite and debugging
   api.onIntakeProgress((done, total) => {
@@ -1123,6 +1152,7 @@
   buildSliders();
   bindControls();
   syncControls();
+  bootFilmHash(); // a shared film link wins before anything else runs
   showRememberedRoll();
 
   $('#loadBtn').onclick = pickFolder;
@@ -1149,6 +1179,18 @@
     $('#filmSaveFields').hidden = mode === 'import';
     $('#filmImportFields').hidden = mode !== 'import';
     $('#filmJson').value = '';
+    // The film link and its QR: the current look as a shareable address. The
+    // QR is offered only when the payload fits one code; the link always is.
+    $('#filmShareFields').hidden = mode === 'import';
+    if (mode !== 'import') {
+      const link = filmLink();
+      const drew = Qr.draw($('#filmQr'), link);
+      $('#filmQr').hidden = !drew;
+      $('#copyLinkBtn').onclick = async () => {
+        try { await navigator.clipboard.writeText(link); toast('Film link copied to clipboard'); }
+        catch { toast('Clipboard refused'); }
+      };
+    }
     if (mode === 'rename') {
       const f = activeFilm();
       $('#filmName').value = f ? singleLine(f.name) : '';

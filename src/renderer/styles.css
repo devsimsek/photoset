@@ -653,6 +653,8 @@ select:disabled { opacity: 0.4; }
   padding: 6px 8px;
 }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+#filmQr { display: block; margin: 10px auto 4px; image-rendering: pixelated; border: 6px solid #fff; border-radius: 4px; max-width: 100%; }
+.dlg-note { margin: 6px 0 0; font-size: 11px; color: var(--dim); text-align: center; }
 
 /* ---------- web build ---------- */
 .web-only { display: none; }

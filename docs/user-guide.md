@@ -62,6 +62,16 @@ A look can travel: export it as a film JSON file, import one back. Films follow
   values, non-hex split-tone colours and unknown aspect, frame or date-format
   values are refused with a message; the current look stays untouched. A valid
   film becomes the active look immediately and joins the library.
+- **Share as a link.** The film dialog offers *COPY LINK*: the app's own
+  address with the film JSON riding in the hash. Opening that link anywhere
+  Photoset runs imports the film on boot and applies the exact look, and an
+  invalid payload refuses by name. The hash is cleared after the import, so
+  reloading the page does not re-import the film.
+- **QR code.** The dialog draws a QR of the same link next to *COPY LINK*,
+  when the payload fits one code (a schema v1 film does, with room to spare;
+  the encoder is byte mode at error correction L, no dependencies). Long-press
+  or right-click the QR to save it as an image. A payload too big for a single
+  QR offers the link alone.
 
 ## The film library
 
