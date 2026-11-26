@@ -115,7 +115,7 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 | PS-40 | Free crop | Open | `engine.js`, `app.js`, roll metadata | |
 | PS-41 | Half-frame mode | Open | `engine.js`, `app.js` | |
 | PS-42 | Sprocket-panorama mode | Open | `engine.js` | |
-| PS-43 | SBOM per release tag (CycloneDX) | Open | CI, release docs | |
+| PS-43 | SBOM per release tag (CycloneDX) | Done | `build/sbom.js`, `package.json`, `pages.yml`, mkdocs nav | Commit `62f33be`. Hand-rolled CycloneDX 1.5 generator (42 components: lockfile tree + first-party engine/qr/exif/zip); ships as /sbom.cdx.json with every deploy, live and parsing. Version drift found while wiring it: package.json read 0.0.1 through seven tags; bumped to 1.1.0, lockstep with tags is now the contract. |
 
 ## v1.3: colorist / LUT (planned)
 
