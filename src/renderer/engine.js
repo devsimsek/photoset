@@ -41,7 +41,7 @@ const Engine = (() => {
   // ---------- rotation ----------
   // Quarter turns (0/90/180/270) apply before the aspect crop: the crop rect
   // computes on the rotated frame, so a landscape shot turned a quarter
-  // develops portrait and a 3:2 crop then frames the rotated shot 2:3.
+  // develops portrait, and a 3:2 crop then frames the rotated shot 2:3.
   function rotated(src, deg) {
     const swap = deg === 90 || deg === 270;
     const c = mk(swap ? src.height : src.width, swap ? src.width : src.height);
@@ -204,10 +204,18 @@ const Engine = (() => {
   }
 
   // ---------- main render ----------
-  /** src: ImageBitmap or canvas. meta: {name, date}. edge: max long edge of output. */
-  function renderLook(src, meta, s, edge, aspectOverride) {
+  /** src: ImageBitmap or canvas. meta: {name, date}. edge: max long edge.
+      aspectOverride forces the aspect; region is an optional free crop as
+      fractions {x,y,w,h} of the ROTATED frame, applied before the aspect
+      crop centers inside it. */
+  function renderLook(src, meta, s, edge, aspectOverride, region) {
     if (s.rotate) src = rotated(src, s.rotate);
-    const cr = cropRect(src.width, src.height, aspectOverride || s.aspect);
+    let frame = { x: 0, y: 0, w: src.width, h: src.height };
+    if (region) {
+      frame = { x: region.x * src.width, y: region.y * src.height, w: region.w * src.width, h: region.h * src.height };
+    }
+    const cr0 = cropRect(frame.w, frame.h, aspectOverride || s.aspect);
+    const cr = { x: frame.x + cr0.x, y: frame.y + cr0.y, w: cr0.w, h: cr0.h };
     const outLong = Math.min(edge || Infinity, Math.max(cr.w, cr.h));
     const sc = outLong / Math.max(cr.w, cr.h);
     const w = Math.max(1, Math.round(cr.w * sc)), h = Math.max(1, Math.round(cr.h * sc));
@@ -349,7 +357,7 @@ const Engine = (() => {
     g.addColorStop(1, 'rgba(190,178,155,0.2)');
     x.fillStyle = g;
     x.fillRect(0, 0, W, H);
-    // The instant paper's own texture: seeded, so the print is reproducible too.
+    // The instant paper's texture: seeded, so the print is reproducible too.
     grain(x, W, H, 10, 1.2, seeded(hash('instant paper')));
     x.drawImage(f, side, top);
     x.save();
@@ -380,10 +388,8 @@ const Engine = (() => {
   }
 
   // ---------- EXIF metadata ----------
-  // Reads the first APP1 'Exif' segment: the capture date, the camera story
-  // (make, model, lens, ISO, exposure, aperture) and GPS coordinates. Returns
-  // null when the file carries no usable EXIF; fields the source lacks stay
-  // unset, never faked.
+  // Reads the first APP1 'Exif' segment: capture date, camera story and GPS.
+  // Returns null when the file carries none; missing fields stay unset.
   const EXIF_SIZES = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
 
   async function exifMeta(blob) {

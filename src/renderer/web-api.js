@@ -15,17 +15,14 @@
   let batch = null; // one develop run
 
   // ---------- intake progress ----------
-  // A whole phone's folder can hold thousands of shots. The metadata reads run
-  // in bounded chunks (INTAKE_CHUNK in flight, a UI yield between chunks) and
-  // report through onIntakeProgress so the app can show a progress line; a
-  // single Promise.all over everything herds thousands of reads at once and
+  // Metadata reads run in bounded chunks with a UI yield between them and
+  // report through onIntakeProgress; one Promise.all over thousands of reads
   // starves the page.
   const INTAKE_CHUNK = 64;
   let onIntake = null;
   const reportIntake = (done, total) => { if (onIntake) onIntake(done, total); };
 
-  // Runs jobs in bounded chunks with a UI yield between chunks, reporting
-  // progress; preserves job order in the results.
+  // Runs jobs in bounded chunks with a UI yield between chunks; preserves order.
   async function inChunks(jobs, run) {
     const out = [];
     for (let i = 0; i < jobs.length; i += INTAKE_CHUNK) {
@@ -38,7 +35,6 @@
   }
 
   // Same rule as the desktop app: never overwrite, for any extension.
-  // strip_001.webp → next free number, anything else → "name (2).webp".
   function candidateName(name, attempt) {
     if (attempt === 0) return name;
     const strip = name.match(/^strip_(\d+)(\.[a-z0-9]+)$/i);
@@ -48,8 +44,7 @@
   }
 
   // ---------- loading ----------
-  // The entries are listed first (cheap), then the metadata is read in
-  // chunks, so a huge folder never holds thousands of getFile() calls at once.
+  // Entries list first (cheap), then metadata reads run in chunks.
   async function fromDirHandle(dir) {
     const handles = [];
     for await (const [name, h] of dir.entries()) {
@@ -172,10 +167,8 @@
   }
 
   // ---------- RAW decoding (ADR 0004) ----------
-  // FlashRaw, self-hosted from web-dist/flashraw/ (build/build-web.js copies
-  // the package's dist files). The module loads ONLY on the first RAW decode:
-  // first paint never pays for it. Decodes run through FlashRaw's own worker
-  // pool; aborts ride the caller's AbortSignal.
+  // FlashRaw, self-hosted from web-dist/flashraw/. The module loads only on
+  // the first RAW decode; aborts ride the caller's AbortSignal.
   let rawPoolPromise = null;
   function rawPool() {
     if (!rawPoolPromise) {
@@ -192,8 +185,7 @@
   // Decode-call accounting for the BDD suite and debugging (abort coverage).
   const rawStats = { started: 0, done: 0, aborted: 0 };
   // A stall hook the RAW scenarios set (ms) to hold decodeRaw before the pool
-  // call; the abort is then observable deterministically. Clearing it (or
-  // setting another delay) releases everything currently stalled.
+  // call; the abort is then observable deterministically.
   let stallDecode = 0;
   const stalled = new Set();
 
@@ -219,10 +211,9 @@
 
   const isAbort = (e) => (e && (e.name === 'AbortError' || e.name === 'ClosedError' || e.kind === 'Cancelled' || e.kind === 'Closed'));
 
-  // file: a photo's file name (looked up in the open roll), or a File/Blob
-  // with the RAW bytes directly. Returns a full-resolution canvas of rgba8
-  // pixels, ready for renderLook. No format side path: callers treat the
-  // result exactly like a decoded JPG bitmap.
+  // file: a photo's file name (looked up in the open roll), or a Blob with the
+  // RAW bytes. Returns a full-resolution rgba8 canvas for renderLook; no
+  // format side path, callers treat it like a decoded JPG bitmap.
   async function decodeRaw(file, { signal } = {}) {
     rawStats.started++;
     try {
@@ -247,8 +238,7 @@
     }
   }
 
-  // The embedded preview of a RAW file as JPEG bytes, decoded to nothing
-  // (zero-copy from the container), or null when the file carries none.
+  // The embedded preview of a RAW file as JPEG bytes, or null when absent.
   async function rawPreview(name, { signal } = {}) {
     let input = name;
     if (typeof name === 'string') {
@@ -261,8 +251,7 @@
     return prev && prev.mimeType === 'image/jpeg' ? prev.data : null;
   }
 
-  // Capture date straight from RAW metadata (RAW has no JPEG EXIF to read),
-  // or null when the file carries none.
+  // Capture date straight from RAW metadata, or null when absent.
   async function rawDate(name, { signal } = {}) {
     let input = name;
     if (typeof name === 'string') {
@@ -278,8 +267,7 @@
   const api = {
     kind: 'web',
     canPickDir,
-    // The app registers a callback here: (done, total) => ... fires as the
-    // intake reads file metadata in chunks.
+    // The app registers a callback: (done, total) fires per intake chunk.
     onIntakeProgress(fn) { onIntake = fn; },
 
     async pickFolder() {

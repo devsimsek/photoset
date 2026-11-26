@@ -58,8 +58,7 @@
   const FRAMES = ['none', '35mm', 'super8', 'instant'];
   const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
   const HEX = /^#[0-9a-f]{6}$/i;
-  // The library loads before the settings restore, which may point at one of
-  // these films. Films are schema v1 objects (see docs/internals/film-schema.md).
+  // The library loads before the settings restore; films are schema v1 objects.
   const films = loadFilms();
   function loadFilms() {
     try {
@@ -99,9 +98,8 @@
   }
 
   // ---------- roll memory (metadata only, pixels never) ----------
-  // darkroom.roll remembers what a roll was: shot names, sizes, mtimes, EXIF
-  // dates already parsed, picks and the strip high-water mark. No image bytes,
-  // no data URLs, no base64: the entry stays a few bytes a shot.
+  // darkroom.roll remembers a roll: shot names, sizes, mtimes, EXIF dates,
+  // picks, the strip high-water mark. No image bytes, no data URLs, no base64.
   const ROLL_KEY = 'darkroom.roll';
 
   function rememberedMeta() {
@@ -255,8 +253,7 @@
     const f = film || activeFilm() || exportFilm();
     return location.origin + location.pathname + '#film=' + filmB64(f);
   }
-  // A #film= hash imports before anything else, then the hash is cleared so a
-  // reload does not re-import. Invalid payloads refuse by name, like a file.
+  // A #film= hash imports first, then clears; invalid payloads refuse by name.
   function bootFilmHash() {
     const m = location.hash.match(/^#film=([A-Za-z0-9_-]+)$/);
     if (!m) return;
@@ -291,7 +288,7 @@
 
   // ---------- helpers ----------
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
-  // rAF stalls when the window is hidden/minimised, so background work yields with a macrotask instead
+  // rAF stalls in hidden or minimised windows; background work yields with a macrotask
   const yieldUI = () => new Promise((r) => setTimeout(r, 0));
   function fmtBytes(n) {
     if (!isFinite(n)) return '-';
@@ -303,6 +300,9 @@
   const pct = (r) => (r === 1 ? '±0%' : r <= 1 ? `−${Math.round((1 - r) * 100)}%` : `+${Math.round((r - 1) * 100)}%`);
   const safeFolder = (v) => String(v || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().replace(/^\.+$/, '') || 'developed';
   const stripAspect = (s) => (s.aspect === 'orig' ? '3:2' : s.aspect);
+  // Free crop (PS-40): fractions of the ROTATED frame, per shot, in the roll
+  // metadata. The engine crops the region first, the aspect crop centers inside it.
+  const cropOf = (p) => (state.perPhoto[p.name] || {}).crop || null;
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
   // The shots that get developed / put on strips: picks in pick order, or the
   // whole roll. Missing shots have no pixels and are skipped.
@@ -329,9 +329,7 @@
     toastTimer = setTimeout(() => $('#toast').classList.remove('on'), actionLabel ? 9000 : 4000);
   }
 
-  // The intake line: one visible line in the roll panel reporting what the
-  // load is doing right now, gone when the roll is ready. On a phone it is
-  // the answer to "did the whole folder open or did it stall?".
+  // The intake line: one line reporting what the load is doing, gone when ready.
   const showIntake = (text) => { const n = $('#intakeLine'); n.hidden = false; n.textContent = text; };
   const hideIntake = () => { $('#intakeLine').hidden = true; };
 
@@ -463,8 +461,7 @@
     if (!roll) return;
     $('#intakeLine').hidden = true; // a new roll takes over the intake line
     if (!roll.files.length) { toast(`No photos found in “${roll.name}”`); return; }
-    // Relink: a remembered roll re-attaches when at least half of its shots are
-    // present in the picked folder by exact file name.
+    // Relink: a remembered roll re-attaches at half of its shots present by name.
     const meta = rememberedMeta();
     const hits = meta ? roll.files.filter((f) => meta.photos.some((m) => m.name === f.name)) : null;
     const relink = hits && hits.length > 0 && hits.length * 2 >= meta.photos.length ? meta : null;
@@ -482,7 +479,7 @@
       state.picks = (relink.picks || []).map((n) => byName.get(n)).filter((i) => i != null);
       state.stripHigh = relink.stripHigh || 0;
       state.perPhoto = relink.perPhoto || {};
-      // Remembered names the folder no longer holds stay listed, flagged, never dropped.
+      // Remembered names absent from the folder stay listed, flagged, never dropped.
       const seen = new Set(state.photos.map((p) => p.name));
       for (const m of meta.photos) {
         if (seen.has(m.name)) continue;
@@ -606,7 +603,7 @@
 
   function renderMoreTiles() { renderTiles(state.rendered + RENDER_BATCH); }
 
-  // Renders tiles up to n shots; the sentinel stays last so the observer keeps firing.
+  // Renders tiles up to n shots; the sentinel stays last for the observer.
   function renderTiles(n) {
     const list = $('#rollList');
     const end = Math.min(state.photos.length, n);
@@ -665,7 +662,7 @@
   // ---------- decoding ----------
   // RAW shots (ADR 0004) decode through the self-hosted FlashRaw decoder into
   // the SAME pipeline: decodeRaw hands back a canvas, everything after it is
-  // renderLook. One AbortController per roll: a roll change aborts decodes.
+  // renderLook. One AbortController per roll aborts in-flight decodes.
   let rawAbort = new AbortController();
   const rawSignal = () => rawAbort.signal;
   const isRaw = (name) => api.isRaw(name);
@@ -680,7 +677,7 @@
     const c = await api.decodeRaw(p.name, { signal: rawSignal() });
     if (!p.w) { p.w = c.width; p.h = c.height; }
     if (!p.date) {
-      // RAW has no JPEG EXIF; the capture date comes from RAW metadata, unset when absent.
+      // RAW has no JPEG EXIF; the capture date comes from RAW metadata or stays unset.
       const t = await api.rawDate(p.name, { signal: rawSignal() });
       p.date = t ? new Date(t) : null;
     }
@@ -752,8 +749,7 @@
     return URL.createObjectURL(blob);
   }
 
-  // RAW tiles: the embedded preview lands within milliseconds of the roll
-  // loading; the full decode replaces it once a shot is viewed or developed.
+  // RAW tiles: embedded preview at once, full decode later.
   async function rawThumb(p, token) {
     try {
       const jpg = await api.rawPreview(p.name, { signal: rawSignal() });
@@ -786,10 +782,8 @@
   }
 
   // ---------- preparing shots (thumbs + the intake line) ----------
-  // Preparing a shot means its thumbnail: a decode, a small JPEG blob URL, the
-  // tile update. Only shots with a tile are prepared, so a huge roll never
-  // decodes everything up front. The intake line counts along, and every
-  // failure surfaces by name instead of a silent console entry.
+  // Preparing a shot means its thumbnail: decode, small JPEG blob URL, tile
+  // update. Only shots with a tile are prepared. Failures surface by name.
   let prepRunning = false, prepQueued = false, prepPromise = Promise.resolve();
   const needPrep = (q) => q.el && !q.prepped && !q.prepping && !q.remembered && !q.missing;
 
@@ -840,8 +834,7 @@
   }
 
   // ---------- edge print ----------
-  // Custom films print their name on the strip edge; built-in stocks keep
-  // PHOTOSET 400. lastStripLabel records what the latest render used.
+  // Custom films print their name on the strip edge.
   const edgeLabel = () => {
     const st = stockById(state.stock);
     return st && films.includes(st) ? String(st.name).replace(/\n/g, ' ') : undefined;
@@ -918,20 +911,24 @@
     const s = state.s;
     let out;
     const inStrip = s.mode !== 'strip' || groupOf(p, s.stripN) >= 0;
-    if (s.mode === 'strip') {
+    if (state.cropMode) {
+      // Crop mode shows the full rotated frame; the crop rect overlays it.
+      out = Engine.renderLook(await getSource(p), p, s, PREV_EDGE, 'orig');
+    } else if (s.mode === 'strip') {
       const g = groupOf(p, s.stripN);
       const group = g >= 0 ? stripGroups(s.stripN)[g] : [p];
       const frames = [];
       for (const q of group) {
-        frames.push(Engine.renderLook(await getSource(q), q, s, STRIP_PREV_EDGE, stripAspect(s)));
+        frames.push(Engine.renderLook(await getSource(q), q, s, STRIP_PREV_EDGE, stripAspect(s), cropOf(q)));
       }
       out = composeStripLabeled(frames, g >= 0 ? g * s.stripN + 1 : 1);
     } else {
       const src = await getSource(p);
-      out = applyFrameLabeled(Engine.renderLook(src, p, s, PREV_EDGE), s, state.sel);
+      out = applyFrameLabeled(Engine.renderLook(src, p, s, PREV_EDGE, null, cropOf(p)), s, state.sel);
     }
     showCanvas(out);
     state.lastOut = out;
+    drawCropOverlay();
     $('#viewHint').hidden = inStrip;
     updateFrameInfo();
   }
@@ -942,10 +939,78 @@
     pv.getContext('2d').drawImage(c, 0, 0);
   }
 
+  // ---------- free crop ----------
+  // Crop mode dims outside the rect and strokes it; fractions of the shown frame.
+  function drawCropOverlay() {
+    if (!state.cropMode) return;
+    const pv = $('#preview'), x = pv.getContext('2d');
+    const r = state.dragCrop || cropOf(state.photos[state.sel]) || { x: 0, y: 0, w: 1, h: 1 };
+    const rx = r.x * pv.width, ry = r.y * pv.height, rw = r.w * pv.width, rh = r.h * pv.height;
+    x.save();
+    x.fillStyle = 'rgba(0,0,0,0.6)';
+    x.beginPath();
+    x.rect(0, 0, pv.width, pv.height);
+    x.rect(rx, ry, rw, rh);
+    x.fill('evenodd');
+    x.lineWidth = Math.max(2, pv.width * 0.004);
+    x.strokeStyle = 'rgba(236,160,58,0.95)';
+    x.strokeRect(rx, ry, rw, rh);
+    x.restore();
+  }
+  function setCrop(p, r) {
+    if (!p || p.remembered || p.missing) return;
+    const m = state.perPhoto[p.name] || (state.perPhoto[p.name] = {});
+    if (r) m.crop = r;
+    else { delete m.crop; if (!Object.keys(m).length) delete state.perPhoto[p.name]; }
+    persistRoll();
+    schedulePreview();
+  }
+  function setCropMode(on) {
+    const p = state.photos[state.sel];
+    if (on && (!p || p.remembered || p.missing)) return;
+    state.cropMode = on;
+    $('#cropBtn').hidden = on;
+    $('#cropReset').hidden = !on;
+    $('#cropDone').hidden = !on;
+    schedulePreview();
+  }
+  const fracOf = (e) => {
+    const r = $('#preview').getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+      y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+    };
+  };
+  let cropDrag = null;
+  $('#preview').addEventListener('pointerdown', (e) => {
+    if (!state.cropMode || state.busy) return;
+    cropDrag = fracOf(e);
+    e.preventDefault();
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!cropDrag) return;
+    const f = fracOf(e);
+    state.dragCrop = {
+      x: Math.round(Math.min(cropDrag.x, f.x) * 1000) / 1000,
+      y: Math.round(Math.min(cropDrag.y, f.y) * 1000) / 1000,
+      w: Math.round(Math.abs(cropDrag.x - f.x) * 1000) / 1000,
+      h: Math.round(Math.abs(cropDrag.y - f.y) * 1000) / 1000,
+    };
+    drawCropOverlay();
+  });
+  window.addEventListener('pointerup', () => {
+    if (!cropDrag) return;
+    const r = state.dragCrop;
+    cropDrag = null;
+    state.dragCrop = null;
+    if (r && r.w >= 0.02 && r.h >= 0.02) setCrop(state.photos[state.sel], r);
+    drawCropOverlay();
+  });
+
   // ---------- full-resolution renders ----------
   async function renderSingleFull(p, s) {
     const bmp = await decode(p);
-    try { return applyFrameLabeled(Engine.renderLook(bmp, p, s, s.maxEdge || Infinity), s, p.idx); }
+    try { return applyFrameLabeled(Engine.renderLook(bmp, p, s, s.maxEdge || Infinity, null, cropOf(p)), s, p.idx); }
     finally { dropSource(bmp); }
   }
   async function renderStripFull(gi, s) {
@@ -954,15 +1019,14 @@
     const frames = [];
     for (const q of group) {
       const bmp = await decode(q);
-      try { frames.push(Engine.renderLook(bmp, q, s, edge, stripAspect(s))); } finally { dropSource(bmp); }
+      try { frames.push(Engine.renderLook(bmp, q, s, edge, stripAspect(s), cropOf(q))); } finally { dropSource(bmp); }
     }
     return { canvas: composeStripLabeled(frames, gi * s.stripN + 1), group };
   }
 
   // ---------- size estimate ----------
-  // Encode under the optional size cap. JPG/WebP: binary-search the quality,
-  // floor 10, and ship the largest quality that fits (quality 10 if nothing
-  // does). PNG is lossless: it scales the long edge down in 10% steps to 50%.
+  // Encode under the optional size cap. JPG/WebP: binary-search quality, floor
+  // 10, ship the largest fit. PNG scales the long edge in 10% steps to 50%.
   async function encodeFits(canvas, s) {
     const cap = (s.capKB || 0) * 1024;
     if (!cap) return Engine.encode(canvas, s.quality, s.format);
@@ -1053,11 +1117,10 @@
     let before = 0, after = 0, done = 0, attempts = 0;
     const failures = []; // "name (reason)" entries, reported at the end of the run
     // Strips continue the roll's numbering: the remembered high-water mark is
-    // where the next batch starts; accepted names (collision bumps included)
-    // move the mark forward.
+    // where the next batch starts; accepted names move the mark forward.
     const stripBase = state.stripHigh || 0;
     try {
-      if (api.beginBatch) await api.beginBatch(folder); // first await: still inside the click, so the browser may ask for folder access
+      if (api.beginBatch) await api.beginBatch(folder); // first await: still inside the click, so the browser may prompt
       const fmt = EXT[s.format] ? s.format : 'image/jpeg';
       const ext = EXT[fmt];
       for (const j of jobs) {
@@ -1149,8 +1212,7 @@
   $('#loadBtn').onclick = pickFolder;
   $('#emptyLoad').onclick = pickFolder;
   $('#rememberLoad').onclick = pickFolder;
-  // Reaching the bottom of the sheet renders more tiles even mid-flick, when
-  // the observer's margin has been outrun by the tiles it just rendered.
+  // Reaching the bottom of the sheet renders more tiles even mid-flick.
   $('#rollList').addEventListener('scroll', () => {
     const list = $('#rollList');
     if (list.scrollTop + list.clientHeight >= list.scrollHeight - 800) renderMoreTiles();
@@ -1234,10 +1296,12 @@
   const cmp = $('#compareBtn');
   cmp.addEventListener('pointerdown', showOriginal);
   for (const ev of ['pointerup', 'pointerleave']) cmp.addEventListener(ev, hideOriginal);
+  $('#cropBtn').onclick = () => setCropMode(true);
+  $('#cropDone').onclick = () => setCropMode(false);
+  $('#cropReset').onclick = () => setCrop(state.photos[state.sel], null);
 
   window.addEventListener('keydown', (e) => {
-    // Text entry never navigates: film names, the film JSON paste area, the
-    // size cap and the folder name are typing fields, not shortcuts.
+    // Typing fields never navigate.
     if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return;
     // A modal dialog owns the keyboard while it is open.
     if (document.querySelector('dialog[open]')) {
@@ -1261,7 +1325,7 @@
     if (state.busy || !e.dataTransfer.files.length) return;
     try {
       showIntake('Opening the drop…'); // sync: openDrop must be called before any await
-      // web: openDrop must be called before any await, while the dropped items are still readable
+      // web: openDrop must run before any await, while the dropped items are readable
       if (api.openDrop) { await loadRoll(await api.openDrop(e.dataTransfer)); return; }
       const p = api.pathForFile(e.dataTransfer.files[0]);
       if (p) await loadRoll(await api.openDir(p));
@@ -1269,8 +1333,7 @@
   });
 
   // ---------- paste a photo ----------
-  // The roll loads JPG photos by law. A pasted PNG re-encodes to JPG through
-  // the canvas on the way in; anything else is refused with a named toast.
+  // The roll loads JPG photos by law; a pasted PNG re-encodes, others are refused by name.
   async function pastePhoto(file) {
     if (state.busy || !file) return;
     const mime = file.type || '';
@@ -1331,9 +1394,7 @@
   });
 
   // ---------- shared photos ----------
-  // An installed Photoset is a share target. Chrome delivers shared files as
-  // a multipart POST to the share_target action; the service worker hands
-  // them here and they run the same intake as a paste.
+  // Share Target: the service worker hands shared files here, same intake as a paste.
   function intakeShared(files) {
     const usable = (files || []).filter(Boolean);
     if (!usable.length) { toast('The share carried no photos the roll could load'); return; }
@@ -1354,9 +1415,8 @@
   }
 
   // ---------- service worker (web builds only) ----------
-  // Registered only in secure contexts with SW support, so file:// and plain
-  // non-SW browsers skip this silently. The relative URL keeps the
-  // registration correct under any deploy base path (/photoset/ on Pages).
+  // Registered only in secure contexts with SW support; the relative URL keeps
+  // the registration correct under any deploy base path.
   if (isWeb && window.isSecureContext && 'serviceWorker' in navigator) {
     // The page reloads ONLY after the user clicked the update toast; a
     // controllerchange from a first activation never reloads on its own.
@@ -1371,14 +1431,13 @@
       });
     };
     navigator.serviceWorker.register('sw.js').then((reg) => {
-      // A worker already waiting when the page loads (user ignored the toast
-      // earlier) gets the toast again.
+      // A worker already waiting (toast ignored earlier) gets the toast again.
       if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
       reg.addEventListener('updatefound', () => {
         const worker = reg.installing;
         if (!worker) return;
         worker.addEventListener('statechange', () => {
-          // A worker "installed and waiting" while an older worker is in control is the toast case.
+          // A worker "installed and waiting" under an older worker is the toast case.
           if (worker.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(worker);
         });
       });

@@ -46,9 +46,9 @@ the app, never through a remote service.
 ## Rolls persist as metadata, never as pixels
 
 The darkroom may remember what a roll was: shot file names, sizes, modification
-times, capture dates it already read, picks, and the highest strip number it has
-produced. It may never store image bytes, data URLs, or any other encoding of
-pixel data.
+times, capture dates it already read, picks, per-shot crop rectangles, and the
+highest strip number it has produced. It may never store image bytes, data
+URLs, or any other encoding of pixel data.
 
 - **A remembered roll shows names without pixels.** After a reload, the contact
   sheet lists the remembered shots as placeholders until the folder is re-picked;

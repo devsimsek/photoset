@@ -1,28 +1,22 @@
-// Photoset Darkroom service worker. Plain JS, no dependencies.
-// build/build-web.js injects the build version into the VERSION constant at
-// copy time, so every build gets its own versioned precache.
+// Photoset Darkroom service worker. Plain JS, no dependencies; build-web.js
+// injects the build version into VERSION at copy time.
 'use strict';
 
 const VERSION = '__BUILD_VERSION__';
 const CACHE = 'photoset-shell-' + VERSION;
-// The RAW decoder's own cache (ADR 0004): filled on first fetch, never at
-// install time, so the first-load weight stays the shell. It dies with its
-// shell version, so an updated app re-fetches the decoder once.
+// The RAW decoder's cache (ADR 0004): filled on first fetch, never at install;
+// it dies with its shell version.
 const DECODER = 'photoset-decoder-' + VERSION;
-// Requests for the self-hosted decoder files (copied from the flashraw
-// package by build/build-web.js) go through this cache-on-first-fetch rule.
 const DECODER_PATH = '/flashraw/';
 
-// The whole build shell; keep in sync with FILES in build/build-web.js.
-// Note (ADR 0004): the RAW decoder wasm is NOT in this list; it joins
-// cache-on-first-fetch in the DECODER cache when a RAW file is first decoded.
+// The whole build shell; keep in sync with FILES in build/build-web.js. The
+// decoder wasm is NOT here: it joins cache-on-first-fetch under DECODER.
 const SHELL = [
   'index.html', 'styles.css', 'app.js', 'engine.js', 'web-api.js',
   'exif.js', 'qr.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
 ];
 
-// Fetch-handler instrumentation for the BDD suite and debugging: the worker
-// answers { type: 'STATS' } with how many requests it has handled.
+// Fetch-handler instrumentation for the BDD suite: the worker answers STATS.
 let handled = 0;
 
 self.addEventListener('install', (e) => {
@@ -32,8 +26,6 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     for (const name of await caches.keys()) {
-      // The decoder cache dies with its shell version: a fresh app keeps one
-      // decoder cache, older ones are dropped.
       if (name !== CACHE && name !== DECODER) await caches.delete(name);
     }
     await self.clients.claim();
@@ -58,10 +50,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Web Share Target: shared photos arrive as a multipart POST to the action
-  // (the app root). The worker answers with a redirect to the shell and hands
-  // the files to the page, where they run the same intake as a paste. The
-  // POST itself never touches the cache.
+  // Web Share Target: shared photos arrive as a multipart POST to the app
+  // root; the worker redirects to the shell and hands the files to the page.
   if (e.request.method === 'POST' && url.pathname === new URL('./', self.location).pathname) {
     handled++;
     e.respondWith(Response.redirect(new URL('./', self.location).href, 303));
@@ -81,10 +71,8 @@ self.addEventListener('fetch', (e) => {
   // Only GET is ever intercepted beyond this point; POST/PUT/DELETE pass through untouched.
   if (e.request.method !== 'GET') return;
 
-  // Decoder assets: cache-first with network fallback, filled on first fetch
-  // (never precached at install). The decoder's glue imports and the wasm
-  // fetches inside its workers are intercepted here too, so one decode puts
-  // every decoder byte in the cache and later decodes work offline.
+  // Decoder assets: cache-first, filled on first fetch (never precached), so
+  // one decode puts every decoder byte in the cache and later decodes work offline.
   if (url.pathname.includes(DECODER_PATH)) {
     handled++;
     e.respondWith((async () => {
@@ -100,15 +88,13 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Navigations are network-first so a deployed update arrives on reload,
-  // falling back to the cached index.html when the network is gone.
+  // Navigations are network-first so a deployed update arrives on reload.
   if (e.request.mode === 'navigate') {
     handled++;
     e.respondWith((async () => {
       try {
         const fresh = await fetch(e.request);
-        // Only a real shell page enters the precache: a 404 or 500 body must
-        // never replace index.html, or the offline boot serves the error page.
+        // Only a real shell page enters the precache: a 404 body never replaces index.html.
         if (fresh && fresh.ok) {
           const c = await caches.open(CACHE);
           c.put('index.html', fresh.clone());
@@ -123,8 +109,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Precached shell assets: cache-first, network fallback, then
-  // cache-and-update so the next offline visit sees the fresh copy.
+  // Precached shell assets: cache-first, then cache-and-update for next time.
   if (SHELL.includes(url.pathname.split('/').pop())) {
     handled++;
     e.respondWith((async () => {

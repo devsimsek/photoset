@@ -112,6 +112,17 @@ with your settings, rides in an exported film JSON as an optional `rotate`
 key (absent means 0), and films written before the key existed import
 unchanged.
 
+## Free crop
+
+CROP on the stage enters crop mode: drag a rectangle on the preview and the
+develop uses exactly that region. Everything outside dims, the rectangle
+strokes orange, and RESET CROP clears it. The crop is per shot: each shot
+remembers its own rectangle with the roll, so it survives a reload and comes
+back when the folder is re-picked, and loading a different roll starts clean.
+Coordinates are fractions of the rotated frame, so a rotation and a crop
+compose: you crop what the quarter turn produced, and the aspect select then
+centers its frame inside the freed region.
+
 ## Output settings
 
 | Setting | Meaning |
