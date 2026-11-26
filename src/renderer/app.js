@@ -82,7 +82,11 @@
     const saved = JSON.parse(localStorage.getItem('darkroom.settings') || 'null');
     if (saved && saved.s) {
       for (const k of Object.keys(state.s)) if (typeof saved.s[k] === typeof state.s[k]) state.s[k] = saved.s[k];
-      if (stockById(saved.stock)) state.stock = saved.stock;
+      // stockById lives further down; look the stock up inline so the saved
+      // film stock survives the reload instead of dying in a swallowed TDZ
+      // error (this block used to restore sliders only).
+      const savedStock = STOCKS.find((x) => x.id === saved.stock) || films.find((f) => f.id === saved.stock);
+      if (savedStock) state.stock = saved.stock;
       state.custom = !!saved.custom;
     }
   } catch { /* first run */ }
@@ -155,6 +159,10 @@
   const slugify = (s) => singleLine(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'film';
   const stockById = (id) => STOCKS.find((x) => x.id === id) || films.find((f) => f.id === id) || null;
   const activeFilm = () => films.find((f) => f.id === state.stock) || null;
+  // The active film's LUT, or null when the active stock carries none. The
+  // LUT lives on the film, never on the look: the look stays byte-for-byte
+  // the documented v1 contract and the settings persistence stays small.
+  const activeLut = () => { const f = activeFilm(); return (f && f.lut) || null; };
   function uniqueId(base, taken) {
     let id = base, n = 2;
     while (taken.some((x) => x.id === id)) id = `${base}-${n++}`;
@@ -166,7 +174,10 @@
     const name = st ? singleLine(st.name) : 'Custom film';
     let base = slugify(name);
     if (state.custom && STOCKS.some((x) => x.id === base)) base += '-custom'; // never a built-in's id
-    return { schema: 1, id: uniqueId(base, films), name, iso: st ? String(st.iso) : 'CUSTOM', look: lookSnapshot() };
+    const lut = activeLut();
+    const film = { schema: lut ? 2 : 1, id: uniqueId(base, films), name, iso: st ? String(st.iso) : 'CUSTOM', look: lookSnapshot() };
+    if (lut) film.lut = lut;
+    return film;
   }
   function applyFilm(film) {
     Object.assign(state.s, BASE, film.look);
@@ -175,10 +186,16 @@
     syncControls();
     changed('look');
   }
-  // Returns an error message, or null when the film is a valid schema v1 film.
+  // Returns an error message, or null when the film is a valid film.
+  // Schema 1 imports exactly as it always did; schema 2 is schema 1 grown at
+  // the root with an optional lut { name, size, table } (ADR 0006): the table
+  // is base64 of exactly size^3 x 3 bytes, each byte an 8-bit output value in
+  // red-fastest order.
   function validateFilm(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'this is not a film JSON';
-    if (raw.schema !== 1) return `unknown film schema version ${JSON.stringify(raw.schema)} (expected 1)`;
+    if (raw.schema !== 1 && raw.schema !== 2) {
+      return `unknown film schema version ${JSON.stringify(raw.schema)} (expected 1 or 2)`;
+    }
     for (const k of ['id', 'name']) if (typeof raw[k] !== 'string' || !raw[k].trim()) return `film ${k} is missing`;
     if (typeof raw.iso !== 'string') return 'film iso must be text';
     const look = raw.look;
@@ -198,14 +215,41 @@
     if (!FRAMES.includes(look.frame)) return `unknown frame "${look.frame}"`;
     if (typeof look.date !== 'boolean') return 'date must be on or off';
     if (!DATE_FMTS.includes(look.dateFmt)) return `unknown date format "${look.dateFmt}"`;
+    if (raw.schema === 2 && raw.lut !== undefined) {
+      const err = validateLut(raw.lut);
+      if (err) return err;
+    }
     return null;
   }
-  function importFilm(text) {
+  function validateLut(lut) {
+    if (!lut || typeof lut !== 'object' || Array.isArray(lut)) return 'film lut is malformed';
+    if (typeof lut.name !== 'string' || !lut.name.trim()) return 'lut name is missing';
+    if (typeof lut.size !== 'number' || !isFinite(lut.size) || Math.floor(lut.size) !== lut.size ||
+        lut.size < 17 || lut.size > 65) {
+      return `lut size ${JSON.stringify(lut.size)} is out of range (17 to 65)`;
+    }
+    const expected = lut.size * lut.size * lut.size * 3;
+    let bytes;
+    try { bytes = atob(lut.table); } catch { return 'lut table is not valid base64'; }
+    if (bytes.length !== expected) {
+      return `lut table must be base64 of ${expected} bytes (${lut.size}x${lut.size}x${lut.size}x3), got ${bytes.length}`;
+    }
+    return null;
+  }
+  // A film carrying a LUT travels as a downloaded file only (ADR 0006): the
+  // QR and the paste surfaces refuse with a named message; the file path and
+  // the library take it as-is.
+  const lutPasteCap = 'a LUT film is too heavy to paste; import the downloaded file';
+  const lutQrCap = 'a LUT film is too heavy for QR; share the downloaded file';
+  function importFilm(text, fromFile) {
     let raw;
     try { raw = JSON.parse(text); } catch { return { error: 'this is not JSON' }; }
     const err = validateFilm(raw);
     if (err) return { error: err };
-    const film = { schema: 1, id: String(raw.id).trim(), name: raw.name, iso: raw.iso, look: raw.look };
+    const lut = raw.schema === 2 && raw.lut ? raw.lut : null;
+    if (lut && !fromFile) return { error: lutPasteCap };
+    const film = { schema: raw.schema, id: String(raw.id).trim(), name: raw.name, iso: raw.iso, look: raw.look };
+    if (lut) film.lut = lut;
     const at = films.findIndex((f) => f.id === film.id);
     if (at >= 0) films[at] = film; // the same film updates in place
     else films.push(film);
@@ -1320,6 +1364,9 @@
 
   // ---------- film studio ----------
   let filmDlgMode = 'save';
+  // Where the import dialog's JSON came from: pasted text refuses LUT films
+  // (the sharing cap), a chosen .json file takes them.
+  let filmFromText = 'paste';
   function openFilmDlg(mode) {
     filmDlgMode = mode;
     $('#filmDlgTitle').textContent = mode === 'import' ? 'IMPORT FILM' : mode === 'rename' ? 'RENAME FILM' : 'SAVE FILM';
@@ -1327,11 +1374,20 @@
     $('#filmImportFields').hidden = mode !== 'import';
     $('#filmJson').value = '';
     $('#filmShareFields').hidden = mode === 'import';
+    $('#filmJson').value = '';
+    filmFromText = 'paste';
     if (mode !== 'import') {
       const link = filmLink();
-      const drew = Qr.draw($('#filmQr'), link);
-      $('#filmQr').hidden = !drew;
+      if (activeLut()) {
+        // The sharing cap (ADR 0006): a LUT film shares as a downloaded file.
+        $('#filmQr').hidden = true;
+        toast(lutQrCap);
+      } else {
+        const drew = Qr.draw($('#filmQr'), link);
+        $('#filmQr').hidden = !drew;
+      }
       $('#copyLinkBtn').onclick = async () => {
+        if (activeLut()) { toast(lutQrCap); return; }
         try { await navigator.clipboard.writeText(link); toast('Film link copied to clipboard'); }
         catch { toast('Clipboard refused'); }
       };
@@ -1354,7 +1410,7 @@
   }
   function onFilmOk() {
     if (filmDlgMode === 'import') {
-      const r = importFilm($('#filmJson').value);
+      const r = importFilm($('#filmJson').value, filmFromText === 'file');
       if (r.error) { toast('Refused: ' + r.error); return; }
       $('#filmDlg').close();
       toast(`Film “${singleLine(r.film.name)}” applied`);
@@ -1383,8 +1439,11 @@
   $('#filmOk').onclick = onFilmOk;
   $('#filmFile').onchange = async () => {
     const f = $('#filmFile').files[0];
-    if (f) $('#filmJson').value = await f.text();
+    if (!f) return;
+    $('#filmJson').value = await f.text();
+    filmFromText = 'file';
   };
+  $('#filmJson').addEventListener('input', () => { filmFromText = 'paste'; });
   const cmp = $('#compareBtn');
   cmp.addEventListener('pointerdown', showOriginal);
   for (const ev of ['pointerup', 'pointerleave']) cmp.addEventListener(ev, hideOriginal);

@@ -82,3 +82,12 @@ The orange seven-segment stamp prefers the EXIF capture date (`DateTimeOriginal`
 If the file carries no usable EXIF, it falls back to the file's modification time.
 No capture date is invented; a file with neither falls back to the mtime, which is
 the best information available on disk.
+
+## LUT films share as downloaded files
+
+A film that carries a LUT travels as a downloaded file only. The film dialog's
+QR and copy-link button refuse it with a named message, and importing a LUT
+film from pasted JSON refuses the same way. The file picker and the film
+library take a LUT film like any other film. The cap is a law, not a size
+check: even a small LUT film refuses, because the cap is about the sharing
+flow, not the byte count. A film without a `lut` shares exactly as before.

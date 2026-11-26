@@ -28,7 +28,7 @@ When(/the photographer opens the film's share link$/, async ({ page }) => {
 });
 
 When(/the photographer opens a link whose hash is a broken film$/, async ({ page }) => {
-  const film = JSON.stringify({ schema: 2, id: 'broken', name: 'Broken', iso: '1', look: {} });
+  const film = JSON.stringify({ schema: 3, id: 'broken', name: 'Broken', iso: '1', look: {} });
   const b64 = Buffer.from(film, 'utf8').toString('base64url');
   await openLink(page, `/#film=${b64}`);
 });

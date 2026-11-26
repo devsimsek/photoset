@@ -72,6 +72,19 @@ A look can travel: export it as a film JSON file, import one back. Films follow
   the encoder is byte mode at error correction L, no dependencies). Long-press
   or right-click the QR to save it as an image. A payload too big for a single
   QR offers the link alone.
+- **LUT films.** A film can carry a LUT: a 3D colour table stored at the root
+  of the film JSON as `lut` (a display name, a lattice size, and the table as
+  base64). Sizes from 17 to 65 points are accepted; anything else refuses
+  naming the range, and a table of the wrong length refuses naming the exact
+  expected size. A film without a `lut` imports as before, and v1 films
+  import forever, unchanged.
+- **LUT films share as files only.** A LUT film is far too heavy for a QR
+  code: the encoder tops out at 2,953 bytes, and a 17-point film is already
+  about 20 KB. The film dialog refuses the QR and the copy-link button with a
+  named message, and a LUT film pasted as JSON refuses on import. Download
+  the film file and import it from the file picker instead; the library
+  stores it like any other film. Look-only films (with or without schema v2)
+  share exactly as before.
 
 ## The film library
 

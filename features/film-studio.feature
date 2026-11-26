@@ -20,7 +20,7 @@ Feature: Film studio
     Then the imported look applies with exposure 25
 
   Scenario: An unknown schema version refuses to import
-    When the photographer pastes a film with schema 2
+    When the photographer pastes a film with schema 3
     Then the import refuses with a message about the schema version
     And the darkroom look is unchanged
 
