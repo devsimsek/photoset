@@ -48,6 +48,12 @@ When('the app navigates to the root again', async () => {
   await sw.page.goto('/');
 });
 
+When('the app navigates to a page that is not found', async () => {
+  // A stale bookmark or a missing docs path: the server answers 404 with a
+  // non-app HTML body. The shell must never cache it as index.html.
+  await sw.page.goto('/definitely-missing/', { waitUntil: 'load' });
+});
+
 Then('the darkroom still boots from the precache', async () => {
   const page = sw.page;
   await page.waitForFunction(() => {

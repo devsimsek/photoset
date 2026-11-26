@@ -86,8 +86,12 @@ self.addEventListener('fetch', (e) => {
     e.respondWith((async () => {
       try {
         const fresh = await fetch(e.request);
-        const c = await caches.open(CACHE);
-        c.put('index.html', fresh.clone());
+        // Only a real shell page enters the precache: a 404 or 500 body must
+        // never replace index.html, or the offline boot serves the error page.
+        if (fresh && fresh.ok) {
+          const c = await caches.open(CACHE);
+          c.put('index.html', fresh.clone());
+        }
         return fresh;
       } catch {
         const cached = await caches.match('index.html');

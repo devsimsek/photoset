@@ -45,3 +45,10 @@ Feature: PWA shell
   Scenario: A service worker registration exists after load
     Given the app has a service worker precaching the shell
     Then a service worker registration exists after load
+
+  Scenario: A broken link never poisons the offline shell
+    Given the app has a service worker precaching the shell
+    When the app navigates to a page that is not found
+    And the network is cut
+    And the app navigates to the root again
+    Then the darkroom still boots from the precache
