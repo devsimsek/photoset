@@ -9,7 +9,7 @@ const esbuild = require('esbuild');
 const root = path.join(__dirname, '..');
 const src = path.join(root, 'src', 'renderer');
 const out = path.join(root, 'web-dist');
-const FILES = ['index.html', 'styles.css', 'engine.js', 'exif.js', 'qr.js', 'web-api.js', 'app.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest', 'sw.js'];
+const FILES = ['index.html', 'styles.css', 'engine.js', 'exif.js', 'qr.js', 'pdf.js', 'web-api.js', 'app.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest', 'sw.js'];
 
 // Files of the flashraw decoder (ADR 0004): the versions of the JS glue and
 // the .wasm binaries the installed flashraw package ships. The decoder loads

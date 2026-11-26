@@ -13,7 +13,7 @@ const DECODER_PATH = '/flashraw/';
 // decoder wasm is NOT here: it joins cache-on-first-fetch under DECODER.
 const SHELL = [
   'index.html', 'styles.css', 'app.js', 'engine.js', 'web-api.js',
-  'exif.js', 'qr.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
+  'exif.js', 'qr.js', 'pdf.js', 'icon.png', 'icon-maskable.png', 'manifest.webmanifest',
 ];
 
 // Fetch-handler instrumentation for the BDD suite: the worker answers STATS.
