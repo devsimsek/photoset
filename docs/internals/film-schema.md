@@ -28,7 +28,7 @@ with a specific message and leaves the current look untouched.
 | `id` | Non-empty string. Stable across saves: renaming a film keeps its id. | `film id is missing` |
 | `name` | Non-empty string, display text. | `film name is missing` |
 | `iso` | String, display text. | `film iso must be text` |
-| `look` | Object with all nineteen keys below. | `film look is missing` |
+| `look` | Object with the look keys below. The original nineteen are required; `rotate` is optional with default `0` (v1 films import forever, PS-39). | `film look is missing` |
 
 Unknown extra keys on the root object are ignored, so schema v1 can grow
 without breaking older films.
@@ -58,8 +58,9 @@ a value outside the range, or a non-number, refuses with the range spelled out.
 | --- | --- | --- |
 | `shadow` | `#rrggbb` hex colour, 3 bytes. | `shadow must be a #rrggbb colour` |
 | `highlight` | `#rrggbb` hex colour, 3 bytes. | `highlight must be a #rrggbb colour` |
-| `aspect` | A key of the engine's `ASPECTS` map: `orig`, `3:2`, `4:3`, `5:4`, `1:1`, `16:9`, `cine`, `instant`. | `unknown aspect "2:1"` |
-| `frame` | `none`, `35mm`, `super8` or `instant`. | `unknown frame "polaroid"` |
+| `aspect` | A key of the engine's `ASPECTS` map: `orig`, `3:2`, `4:3`, `5:4`, `1:1`, `16:9`, `cine`, `instant`. (`sprocket` also validates; it applies automatically in sprocket frame mode and the Crop select never offers it.) | `unknown aspect "2:1"` |
+| `frame` | `none`, `35mm`, `super8`, `instant`, `halfframe` or `sprocket`. | `unknown frame "polaroid"` |
+| `rotate` | OPTIONAL, added after v1 shipped: `0` (default), `90`, `180` or `270`. Films written before the key existed import unchanged; when present, the value must be one of the four or the import refuses. | `unknown rotate "45"` |
 | `date` | Boolean: the date stamp on or off. | `date must be on or off` |
 | `dateFmt` | `ymd`, `mdy` or `dmy`. | `unknown date format "dmy2"` |
 
