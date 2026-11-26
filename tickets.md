@@ -93,7 +93,7 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 
 | ID | Title | Status | Scope | Evidence |
 | --- | --- | --- | --- | --- |
-| PS-31 | Mobile load hardening: lazy tiles, batched metadata, progress, honest errors | In Progress | `web-api.js`, `app.js`, `index.html`, `styles.css`, features/ | |
+| PS-31 | Mobile load hardening: lazy tiles, batched metadata, progress, honest errors | Done | `web-api.js`, `app.js`, `index.html`, `styles.css`, features/ | Commit `1dcb2d1`. Red proof: 4 failed pre-impl (no intake line, unnamed preview toast). 86/86 green. Chunked metadata reads (max 64 concurrent, was 300 at once via Promise.all), lazy thumbs keyed to rendered tiles, `#intakeLine` progress, per-shot named failure toasts. Batching pinned by real drop-handler probes with a fake folder entry. |
 | PS-32 | Phone repro triage (backlog, device needed) | Open | investigation | Owner reports the same path works for him; record both outcomes on a real device when available. |
 
 ## v1.1: faithful films (planned)
