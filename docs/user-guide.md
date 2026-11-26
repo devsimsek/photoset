@@ -86,7 +86,7 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 | Warmth, Tint | Colour cast; warm shifts reds up, tint shifts green/magenta. |
 | Fade | Lifts blacks, washes the image toward the film's paper base. |
 | Split tone | Tints shadows toward the shadow colour and highlights toward the highlight colour. |
-| Grain, Grain size | Film grain amount and clump size. |
+| Grain, Grain size | Film grain amount and clump size. Like the leak and the flicker, the grain is seeded by file name: the same file with the same film develops identically every time, and two shots that differ only by name still grain differently. |
 | Vignette | Corners fall off. |
 | Softness | Low-frequency lens/halation blur. |
 | Light leak | Edge glows in orange or red. Seeded by file name: the same file always leaks the same way. |

@@ -1,6 +1,8 @@
 'use strict';
 /* Photoset Darkroom - image engine.
-   Everything runs on canvas: crop → soften → colour grade → light leak → vignette → date stamp → grain → frame. */
+   Everything runs on canvas: crop → soften → colour grade → light leak → vignette → date stamp → grain → frame.
+   Grain draws from the same seeded RNG (keyed by the file's name) as leak and
+   flicker, so a develop with any sliders reproduces byte for byte. */
 const Engine = (() => {
   const ASPECTS = { orig: 0, '3:2': 1.5, '4:3': 4 / 3, '5:4': 1.25, '1:1': 1, '16:9': 16 / 9, cine: 2.39, instant: 62 / 46 };
 
@@ -116,13 +118,13 @@ const Engine = (() => {
     ctx.restore();
   }
 
-  function grain(ctx, w, h, amt, size) {
+  function grain(ctx, w, h, amt, size, rng) {
     const L = Math.max(w, h), gs = Math.max(1, (size * L) / 1600);
     const nw = Math.max(1, Math.ceil(w / gs)), nh = Math.max(1, Math.ceil(h / gs));
     const n = mk(nw, nh), nx = n.getContext('2d');
     const id = nx.createImageData(nw, nh), d = id.data;
     for (let i = 0; i < d.length; i += 4) {
-      const v = 128 + (Math.random() + Math.random() - 1) * 140;
+      const v = 128 + (rng() + rng() - 1) * 140;
       d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
     }
     nx.putImageData(id, 0, 0);
@@ -213,7 +215,7 @@ const Engine = (() => {
     if (s.leak > 0) lightLeak(ctx, w, h, s.leak, rng);
     if (s.vignette > 0) vignette(ctx, w, h, s.vignette);
     if (s.date && meta.date) dateStamp(ctx, w, h, meta.date, s.dateFmt);
-    if (s.grain > 0) grain(ctx, w, h, s.grain, s.grainSize);
+    if (s.grain > 0) grain(ctx, w, h, s.grain, s.grainSize, rng);
     return c;
   }
 
@@ -332,7 +334,8 @@ const Engine = (() => {
     g.addColorStop(1, 'rgba(190,178,155,0.2)');
     x.fillStyle = g;
     x.fillRect(0, 0, W, H);
-    grain(x, W, H, 10, 1.2);
+    // The instant paper's own texture: seeded, so the print is reproducible too.
+    grain(x, W, H, 10, 1.2, seeded(hash('instant paper')));
     x.drawImage(f, side, top);
     x.save();
     x.beginPath();

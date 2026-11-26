@@ -1107,7 +1107,7 @@
   function hideOriginal() { if (state.lastOut) showCanvas(state.lastOut); }
 
   // ---------- wiring ----------
-  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, state, exportFilm, importFilm, whenReady: () => prepPromise }; // debugging / smoke tests
+  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, whenReady: () => prepPromise }; // debugging / smoke tests
   // Intake progress from the bridge: the metadata reads report chunk by chunk.
   window.__intakeLog = []; // accounting for the BDD suite and debugging
   api.onIntakeProgress((done, total) => {
