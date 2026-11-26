@@ -79,8 +79,50 @@ Ticketing happens when a wave starts. Scope may shift before then.
 
 | Version | Theme |
 | --- | --- |
-| v0.3.0 | PWA |
-| v0.4.0 | Local storage / rolls |
-| v0.5.0 | Mobile + QOL |
-| v0.6.0 | RAW processing |
-| v1.0.0 | 1.0 |
+| v0.3.0 | PWA (done) |
+| v0.4.0 | Local storage / rolls (done) |
+| v0.5.0 | Mobile + QOL (done) |
+| v0.6.0 | RAW processing (done) |
+| v1.0.0 | 1.0 (done) |
+
+## v1.0.2 hotfix: mobile intake hardening (2026-11-26)
+
+First real-world report: a folder with a whole phone's photos "didn't fully open"
+(Muhsin, phone). Repro on the owner's device passed; the hardening ships blind and
+PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.md
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-31 | Mobile load hardening: lazy tiles, batched metadata, progress, honest errors | In Progress | `web-api.js`, `app.js`, `index.html`, `styles.css`, features/ | |
+| PS-32 | Phone repro triage (backlog, device needed) | Open | investigation | Owner reports the same path works for him; record both outcomes on a real device when available. |
+
+## v1.1: faithful films (planned)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-33 | Deterministic grain (byte-exact develop law) | Open | `engine.js`, docs | |
+| PS-34 | Full EXIF carry; GPS stays default-off | Open | `exif.js`, `app.js`, docs | |
+| PS-35 | Web Share Target: share photos into Photoset | Open | `manifest.webmanifest`, `app.js`, features/ | |
+| PS-36 | Film as URL + QR (rides on PS-33) | Open | `app.js`, features/ | |
+
+## v1.2: darkroom print (planned)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-37 | Vendored minimal PDF writer + ADR 0005 | Open | new module, `build-web.js` FILES, docs/adr | |
+| PS-38 | Contact-sheet PDF export | Open | `engine.js`, `app.js`, features/ | |
+| PS-39 | Rotate 90 degrees | Open | `engine.js`, `app.js` | |
+| PS-40 | Free crop | Open | `engine.js`, `app.js`, roll metadata | |
+| PS-41 | Half-frame mode | Open | `engine.js`, `app.js` | |
+| PS-42 | Sprocket-panorama mode | Open | `engine.js` | |
+| PS-43 | SBOM per release tag (CycloneDX) | Open | CI, release docs | |
+
+## v1.3: colorist / LUT (planned)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-44 | ADR 0006: LUT design | Open | docs/adr | |
+| PS-45 | .cube import | Open | film studio, schema | |
+| PS-46 | .cube export (v1 grade baked in) | Open | film studio, schema | |
+| PS-47 | Film schema v2 + migration (v1 imports forever) | Open | `app.js`, docs | |
+| PS-48 | 3D interpolation in the engine | Open | `engine.js` | |
