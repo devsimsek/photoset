@@ -1098,10 +1098,11 @@
   }
 
   // ---------- develop ----------
-  function setBusy(on) {
+  // label names the work on the develop button while it runs ("PRINTING…").
+  function setBusy(on, label) {
     state.busy = on;
-    for (const id of ['#developBtn', '#saveOneBtn', '#loadBtn', '#emptyLoad']) $(id).disabled = on;
-    if (on) $('#developBtn').textContent = 'DEVELOPING…';
+    for (const id of ['#developBtn', '#saveOneBtn', '#loadBtn', '#emptyLoad', '#printBtn']) $(id).disabled = on;
+    if (on) $('#developBtn').textContent = label || 'DEVELOPING…';
     else updatePickUI();
   }
   const setProgress = (f) => { $('#progressBar').style.width = Math.round(f * 100) + '%'; };
@@ -1200,6 +1201,88 @@
     }
   }
 
+  // ---------- contact sheet (PS-38) ----------
+  // The roll prints as a proof sheet: the same strip composites Film strips
+  // output produces, two per A4 portrait page, each with a caption line. The
+  // first page names the film, the roll and the print date. Strips number
+  // from 1; the sheet never touches the developed files' strip numbering.
+  // Embedded strips develop at a 1200 px proof edge (or the Max size cap when
+  // it is lower) and encode at fixed quality 75, so the sheet stays small.
+  async function printContactSheet() {
+    if (state.busy || !state.photos.length) return;
+    if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
+    const s = { ...state.s };
+    const half = isHalf(s);
+    const groups = half ? halfGroups() : stripGroups(s.stripN);
+    if (!groups.length) { toast('Nothing to print: the whole roll is missing from the folder.'); return; }
+    setBusy(true, 'PRINTING…');
+    setProgress(0);
+    clearTimeout(estTimer);
+    estSeq++;
+    try {
+      if (api.beginBatch) await api.beginBatch('prints');
+      const film = stockById(state.stock);
+      const ps = Pdf.document();
+      const M = 40, top = ps.size.height - M, availW = ps.size.width - M * 2;
+      let page = ps.page(), cursorY = top, slot = 0;
+      // Page 1 header: film name on the bold line, roll line under it.
+      page.text(singleLine(film ? film.name : 'Custom film'), M, top - 12, { size: 14, bold: true });
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      page.text(`Roll ${state.roll.name} - ${sequence().length} frames - printed ${dateStr}`, M, top - 30, { size: 10, gray: 0.35 });
+      cursorY = top - 44;
+      const proofEdge = s.maxEdge ? Math.min(s.maxEdge, 2400) : 1200;
+      const rs = { ...s, maxEdge: proofEdge };
+      let done = 0;
+      const failures = []; // "strip n (reason)" entries, reported at the end
+      for (let gi = 0; gi < groups.length; gi++) {
+        let canvas, group;
+        try {
+          ({ canvas, group } = half ? await renderHalfFull(gi, rs, gi + 1) : await renderStripFull(gi, rs));
+          const w = canvas.width, h = canvas.height;
+          const jpeg = await Engine.encode(canvas, 75);
+          canvas.width = canvas.height = 0;
+          const drawH = (h * availW) / w;
+          const slotH = drawH + 18; // strip plus its caption line
+          // Two strips per page; the space check is a safety net for
+          // unusually tall strips.
+          if (slot === 2 || cursorY - slotH < M) { page = ps.page(); cursorY = top; slot = 0; }
+          const x = (ps.size.width - availW) / 2;
+          page.jpeg(new Uint8Array(await jpeg.arrayBuffer()), w, h, x, cursorY - drawH, availW, drawH);
+          page.text(`Strip ${gi + 1} - ${group.length} frames`, x, cursorY - drawH - 10, { size: 9, gray: 0.4 });
+          cursorY -= slotH;
+          slot++;
+          done++;
+          setProgress((gi + 1) / groups.length);
+        } catch (e) {
+          console.error('contact sheet strip failed:', gi + 1, e);
+          failures.push(`strip ${gi + 1} (${String(e.message || e).trim()})`);
+        }
+        setLcd(groups.length - (gi + 1));
+        $('#devNote').textContent = `Printing ${gi + 1} / ${groups.length}…`;
+        await yieldUI();
+      }
+      if (!done) {
+        toast(`Could not print the contact sheet: ${failures.join(', ')}`);
+        return;
+      }
+      const bytes = ps.end();
+      const written = await api.writeFile('prints', `${state.roll.name}-contact-sheet.pdf`, bytes, 'application/pdf');
+      let msg = `Contact sheet ready - ${done} strip${done === 1 ? '' : 's'} - ${fmtBytes(bytes.length)}`;
+      if (failures.length) msg = `Printed ${done}, failed ${failures.length}: ${failures.join(', ')} - ${fmtBytes(bytes.length)}`;
+      const downloaded = api.endBatch ? await api.endBatch() : null;
+      toast(downloaded ? `${msg} - downloaded ${written}` : msg);
+    } catch (e) {
+      console.error(e);
+      const partial = api.endBatch ? await api.endBatch().catch(() => null) : null;
+      toast(`Contact sheet stopped: ${e.message}${partial ? ` - downloaded ${partial}` : ''}`);
+    } finally {
+      setBusy(false);
+      setLcd(state.photos.length);
+      setTimeout(() => setProgress(0), 2500);
+    }
+  }
+
   async function showOriginal() {
     const p = state.photos[state.sel];
     if (p) showCanvas(await getSource(p));
@@ -1207,7 +1290,7 @@
   function hideOriginal() { if (state.lastOut) showCanvas(state.lastOut); }
 
   // ---------- wiring ----------
-  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, filmLink, whenReady: () => prepPromise }; // debugging / smoke tests
+  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, filmLink, printContactSheet, whenReady: () => prepPromise }; // debugging / smoke tests
   window.__intakeLog = []; // accounting for the BDD suite and debugging
   api.onIntakeProgress((done, total) => {
     showIntake(total ? `Reading ${done} / ${total}…` : 'Reading the folder…');
@@ -1230,6 +1313,7 @@
   $('#prevBtn').onclick = () => select(state.sel - 1);
   $('#nextBtn').onclick = () => select(state.sel + 1);
   $('#developBtn').onclick = () => develop(false);
+  $('#printBtn').onclick = () => printContactSheet();
   $('#saveOneBtn').onclick = () => develop(true);
   $('#pickAll').onclick = () => setPicks(state.photos.map((p) => p.idx));
   $('#pickNone').onclick = () => setPicks([]);

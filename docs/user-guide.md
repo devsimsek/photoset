@@ -137,6 +137,25 @@ centers its frame inside the freed region.
 | Folder name | Subfolder for results (default `developed`). Unsafe characters are stripped. |
 | Date format | The orange seven-segment date stamp: `'YY MM DD`, `MM DD 'YY` or `DD MM 'YY`. |
 
+## Contact sheet
+
+The *Print PDF* button in the output panel prints the roll as a
+contact-sheet PDF: the same film-strip composites the Film strips output
+produces (the strip size follows Frames per strip), laid out two strips per
+A4 portrait page, each strip scaled to the page width and centered, with a
+`Strip n - k frames` caption line under it. The first page names the active
+film on a bold line, with the roll name, frame count and print date under
+it. The picked set prints when shots are picked; with nothing picked, the
+whole roll prints. Strips that fail to compose are named in the summary
+toast and the rest of the sheet still prints.
+
+The sheet is a proof sheet, not full-resolution output: embedded strips
+develop at a 1200 px long edge (or the Max size setting, when it is lower)
+and quality 75. A typical 12-shot roll prints around 1 MB; a roll of
+hard-to-compress shots stays under 8 MB. The PDF is written to the `prints`
+subfolder (or downloads as a single `.pdf`), so originals stay untouched,
+and it never touches the developed files' strip numbering.
+
 ## The shot's story travels
 
 A develop re-encodes through a canvas, which strips EXIF. With *Keep EXIF* on,
