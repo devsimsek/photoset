@@ -13,7 +13,7 @@
     exposure: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0, fade: 0,
     split: 0, shadow: '#2f6a72', highlight: '#ffb46a',
     grain: 0, grainSize: 1.5, vignette: 0, softness: 0, leak: 0, flicker: 0,
-    aspect: 'orig', frame: 'none', date: false,
+    aspect: 'orig', frame: 'none', date: false, rotate: 0,
   };
   const LOOK_KEYS = Object.keys(BASE);
   const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg', keepExif: false, gpsExif: false };
@@ -50,8 +50,11 @@
   const LOOK_FIELDS = [
     'exposure', 'contrast', 'saturation', 'warmth', 'tint', 'fade', 'split',
     'shadow', 'highlight', 'grain', 'grainSize', 'vignette', 'softness',
-    'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt',
+    'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt', 'rotate',
   ];
+  // Rotate joined schema v1 late: an OPTIONAL look key with default 0, so
+  // films written without it still validate (v1 films import forever).
+  const ROTS = [0, 90, 180, 270];
   const FRAMES = ['none', '35mm', 'super8', 'instant'];
   const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
   const HEX = /^#[0-9a-f]{6}$/i;
@@ -97,8 +100,8 @@
 
   // ---------- roll memory (metadata only, pixels never) ----------
   // darkroom.roll remembers what a roll was: shot names, sizes, mtimes, EXIF
-  // dates already parsed, picks (by file name) and the strip high-water mark.
-  // No image bytes, no data URLs, no base64: the entry stays a few bytes a shot.
+  // dates already parsed, picks and the strip high-water mark. No image bytes,
+  // no data URLs, no base64: the entry stays a few bytes a shot.
   const ROLL_KEY = 'darkroom.roll';
 
   function rememberedMeta() {
@@ -134,8 +137,7 @@
     } catch { /* storage blocked or full: memory is best effort */ }
   }
 
-  // Boot with a remembered roll: names come back, pixels do not. The contact
-  // sheet lists the shots greyed out until the folder is re-picked.
+  // Boot with a remembered roll: names come back, pixels do not.
   function showRememberedRoll() {
     const meta = rememberedMeta();
     if (!meta || !meta.photos.length) return;
@@ -189,7 +191,10 @@
     const look = raw.look;
     if (!look || typeof look !== 'object' || Array.isArray(look)) return 'film look is missing';
     for (const k of Object.keys(look)) if (!LOOK_FIELDS.includes(k)) return `unknown look key "${k}"`;
-    for (const k of LOOK_FIELDS) if (!(k in look)) return `look is missing "${k}"`;
+    for (const k of LOOK_FIELDS) if (!(k in look) && k !== 'rotate') return `look is missing "${k}"`;
+    if ('rotate' in look && !ROTS.includes(look.rotate)) {
+      return `unknown rotate ${JSON.stringify(look.rotate)} (use 0, 90, 180 or 270)`;
+    }
     for (const [k, , min, max] of SLIDERS) {
       const v = look[k];
       if (typeof v !== 'number' || !isFinite(v)) return `${k} must be a number`;
@@ -238,8 +243,8 @@
     toast(`Film renamed to “${f.name}”`);
   }
   // ---------- films travel: link, QR, boot import ----------
-  // The film rides in the address hash as base64url of its schema v1 JSON.
-  // The link is the app's own address, so opening it imports the film on boot.
+  // The film rides in the address hash as base64url of its schema v1 JSON;
+  // the link is the app's own address, so opening it imports the film on boot.
   function filmB64(film) {
     const bytes = new TextEncoder().encode(JSON.stringify(film));
     let s = '';
@@ -251,8 +256,7 @@
     return location.origin + location.pathname + '#film=' + filmB64(f);
   }
   // A #film= hash imports before anything else, then the hash is cleared so a
-  // reload does not re-import. Invalid payloads refuse by name, exactly like a
-  // file import, and the hash is cleared all the same.
+  // reload does not re-import. Invalid payloads refuse by name, like a file.
   function bootFilmHash() {
     const m = location.hash.match(/^#film=([A-Za-z0-9_-]+)$/);
     if (!m) return;
@@ -300,8 +304,8 @@
   const safeFolder = (v) => String(v || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().replace(/^\.+$/, '') || 'developed';
   const stripAspect = (s) => (s.aspect === 'orig' ? '3:2' : s.aspect);
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
-  // the shots that get developed / put on strips: picks in pick order, or the whole roll.
-  // Shots flagged as missing from the folder have no pixels and are skipped.
+  // The shots that get developed / put on strips: picks in pick order, or the
+  // whole roll. Missing shots have no pixels and are skipped.
   const sequence = () => {
     const base = state.picks.length ? state.picks.map((i) => state.photos[i]) : state.photos;
     return base.filter((p) => p && !p.missing);
@@ -325,10 +329,9 @@
     toastTimer = setTimeout(() => $('#toast').classList.remove('on'), actionLabel ? 9000 : 4000);
   }
 
-  // The intake line: one visible line in the roll panel that reports what the
-  // load is doing right now (reading a folder's metadata, preparing shots) and
-  // goes away when the roll is ready. On a phone it is the answer to "did the
-  // whole folder open or did it stall?".
+  // The intake line: one visible line in the roll panel reporting what the
+  // load is doing right now, gone when the roll is ready. On a phone it is
+  // the answer to "did the whole folder open or did it stall?".
   const showIntake = (text) => { const n = $('#intakeLine'); n.hidden = false; n.textContent = text; };
   const hideIntake = () => { $('#intakeLine').hidden = true; };
 
@@ -461,7 +464,7 @@
     $('#intakeLine').hidden = true; // a new roll takes over the intake line
     if (!roll.files.length) { toast(`No photos found in “${roll.name}”`); return; }
     // Relink: a remembered roll re-attaches when at least half of its shots are
-    // present in the picked folder by exact file name. The roll name is only a hint.
+    // present in the picked folder by exact file name.
     const meta = rememberedMeta();
     const hits = meta ? roll.files.filter((f) => meta.photos.some((m) => m.name === f.name)) : null;
     const relink = hits && hits.length > 0 && hits.length * 2 >= meta.photos.length ? meta : null;
@@ -479,8 +482,7 @@
       state.picks = (relink.picks || []).map((n) => byName.get(n)).filter((i) => i != null);
       state.stripHigh = relink.stripHigh || 0;
       state.perPhoto = relink.perPhoto || {};
-      // Remembered names the folder no longer holds stay listed, flagged as
-      // missing; they are never silently dropped.
+      // Remembered names the folder no longer holds stay listed, flagged, never dropped.
       const seen = new Set(state.photos.map((p) => p.name));
       for (const m of meta.photos) {
         if (seen.has(m.name)) continue;
@@ -578,10 +580,10 @@
 
   // ---------- roll list: tiles render lazily ----------
   // A whole phone's folder can hold thousands of shots; one live node set per
-  // photo never fully opens. The sheet renders RENDER_BATCH tiles up front and
-  // an IntersectionObserver on a sentinel renders more as the photographer
-  // scrolls near the end. Every shot stays selectable regardless of its tile:
-  // select() renders up to the shot when a keyboard walk outruns the window.
+  // photo never fully opens. RENDER_BATCH tiles render up front and an
+  // IntersectionObserver on a sentinel renders more as the photographer
+  // scrolls near the end; a keyboard walk that outruns the window renders up
+  // to its shot through select().
   const RENDER_BATCH = 60;
   let rollIO = null;
 
@@ -604,8 +606,7 @@
 
   function renderMoreTiles() { renderTiles(state.rendered + RENDER_BATCH); }
 
-  // Renders tiles up to n shots; the sentinel stays last so the observer keeps
-  // firing while shots remain, and leaves with it once every shot has a tile.
+  // Renders tiles up to n shots; the sentinel stays last so the observer keeps firing.
   function renderTiles(n) {
     const list = $('#rollList');
     const end = Math.min(state.photos.length, n);
@@ -647,8 +648,7 @@
     if (p.out != null) size.append(' → ', el('span', 'out', fmtBytes(p.out)));
     p.el.classList.toggle('remembered', !!p.remembered);
     p.el.classList.toggle('missing', !!p.missing);
-    // RAW tiles spin until their real decode replaces the embedded preview
-    // (or fills the tile for files without one).
+    // RAW tiles spin until their real decode replaces the embedded preview.
     p.el.querySelector('.ri-thumb').classList.toggle('decoding', isRaw(p.name) && p.rawState !== 'decoded');
     p.el.title = p.missing ? 'missing from folder'
       : p.remembered ? 'remembered · re-pick the folder to restore' : '';
@@ -663,10 +663,9 @@
   }
 
   // ---------- decoding ----------
-  // RAW shots (ADR 0004) decode through the self-hosted FlashRaw decoder and
-  // feed the SAME pipeline: decodeRaw hands back a canvas, everything after it
-  // is renderLook on canvas sources. Each roll owns one AbortController so a
-  // roll change aborts every in-flight RAW decode.
+  // RAW shots (ADR 0004) decode through the self-hosted FlashRaw decoder into
+  // the SAME pipeline: decodeRaw hands back a canvas, everything after it is
+  // renderLook. One AbortController per roll: a roll change aborts decodes.
   let rawAbort = new AbortController();
   const rawSignal = () => rawAbort.signal;
   const isRaw = (name) => api.isRaw(name);
@@ -676,14 +675,12 @@
     rawAbort = new AbortController();
   }
 
-  // Full transient RAW decode: decode-then-drop, no caching. Used by develop
-  // and the size estimate, where the pixels are consumed immediately.
+  // Full transient RAW decode: decode-then-drop, no caching.
   async function decodeRawFull(p) {
     const c = await api.decodeRaw(p.name, { signal: rawSignal() });
     if (!p.w) { p.w = c.width; p.h = c.height; }
     if (!p.date) {
-      // RAW has no JPEG EXIF; the capture date comes from RAW metadata when
-      // the file carries one, and stays unset when it does not.
+      // RAW has no JPEG EXIF; the capture date comes from RAW metadata, unset when absent.
       const t = await api.rawDate(p.name, { signal: rawSignal() });
       p.date = t ? new Date(t) : null;
     }
@@ -704,8 +701,7 @@
     if (!p.date) p.date = (p.exif && p.exif.date) || new Date(p.mtime);
     return bmp;
   }
-  // Bitmaps close themselves; decoded RAW canvases release their pixels by
-  // being zeroed. Both mean "I am done with these pixels".
+  // Bitmaps close themselves; decoded RAW canvases release by being zeroed.
   const dropSource = (b) => {
     if (!b) return;
     if (b.close) b.close();
@@ -731,8 +727,7 @@
   async function getSource(p) {
     const hit = previewCache.get(p.name);
     if (hit) { previewCache.delete(p.name); previewCache.set(p.name, hit); return hit; }
-    // RAW: the in-view shot keeps its full decode; every other shot's is
-    // dropped. The decode replaces the tile's embedded-preview thumb.
+    // RAW: the in-view shot keeps its full decode, every other shot's is dropped.
     if (isRaw(p.name)) {
       let full = p.rawSrc;
       if (!full) {
@@ -758,8 +753,7 @@
   }
 
   // RAW tiles: the embedded preview lands within milliseconds of the roll
-  // loading; the full decode (when the shot is viewed or developed) replaces
-  // it. A file with no embedded preview waits for its decode.
+  // loading; the full decode replaces it once a shot is viewed or developed.
   async function rawThumb(p, token) {
     try {
       const jpg = await api.rawPreview(p.name, { signal: rawSignal() });
@@ -794,8 +788,7 @@
   // ---------- preparing shots (thumbs + the intake line) ----------
   // Preparing a shot means its thumbnail: a decode, a small JPEG blob URL, the
   // tile update. Only shots with a tile are prepared, so a huge roll never
-  // decodes everything up front; scrolling renders more tiles and prep
-  // follows. The intake line shows the count while this runs, and every
+  // decodes everything up front. The intake line counts along, and every
   // failure surfaces by name instead of a silent console entry.
   let prepRunning = false, prepQueued = false, prepPromise = Promise.resolve();
   const needPrep = (q) => q.el && !q.prepped && !q.prepping && !q.remembered && !q.missing;
@@ -869,8 +862,7 @@
     if (!state.photos.length) return;
     i = Math.max(0, Math.min(state.photos.length - 1, i));
     state.sel = i;
-    // Leaving a shot drops its decoded RAW pixels: one full decode lives at a
-    // time, the next view decodes again on demand.
+    // Leaving a shot drops its decoded RAW pixels: one full decode lives at a time.
     dropRawSources(null);
     document.querySelectorAll('.roll-item.sel').forEach((n) => n.classList.remove('sel'));
     const p = state.photos[i];
@@ -969,9 +961,8 @@
 
   // ---------- size estimate ----------
   // Encode under the optional size cap. JPG/WebP: binary-search the quality,
-  // floor 10, and ship the largest quality that fits (the quality-10 result if
-  // nothing does). PNG is lossless, so the cap is honored by downscaling the
-  // long edge in 10% steps to 50%, then shipping that.
+  // floor 10, and ship the largest quality that fits (quality 10 if nothing
+  // does). PNG is lossless: it scales the long edge down in 10% steps to 50%.
   async function encodeFits(canvas, s) {
     const cap = (s.capKB || 0) * 1024;
     if (!cap) return Engine.encode(canvas, s.quality, s.format);
@@ -1062,8 +1053,8 @@
     let before = 0, after = 0, done = 0, attempts = 0;
     const failures = []; // "name (reason)" entries, reported at the end of the run
     // Strips continue the roll's numbering: the remembered high-water mark is
-    // where the next batch starts, and whatever the output actually accepts
-    // (collision bumps included) moves the mark forward.
+    // where the next batch starts; accepted names (collision bumps included)
+    // move the mark forward.
     const stripBase = state.stripHigh || 0;
     try {
       if (api.beginBatch) await api.beginBatch(folder); // first await: still inside the click, so the browser may ask for folder access
@@ -1158,7 +1149,7 @@
   $('#loadBtn').onclick = pickFolder;
   $('#emptyLoad').onclick = pickFolder;
   $('#rememberLoad').onclick = pickFolder;
-  // Reaching the bottom of the sheet renders more tiles, even mid-flick when
+  // Reaching the bottom of the sheet renders more tiles even mid-flick, when
   // the observer's margin has been outrun by the tiles it just rendered.
   $('#rollList').addEventListener('scroll', () => {
     const list = $('#rollList');
@@ -1179,8 +1170,8 @@
     $('#filmSaveFields').hidden = mode === 'import';
     $('#filmImportFields').hidden = mode !== 'import';
     $('#filmJson').value = '';
-    // The film link and its QR: the current look as a shareable address. The
-    // QR is offered only when the payload fits one code; the link always is.
+    // The film link and its QR: the current look as a shareable address; the QR
+    // only draws when the payload fits one code.
     $('#filmShareFields').hidden = mode === 'import';
     if (mode !== 'import') {
       const link = filmLink();
@@ -1278,9 +1269,8 @@
   });
 
   // ---------- paste a photo ----------
-  // The roll loads JPG photos by law. A pasted PNG is re-encoded to JPG
-  // through the canvas on the way in, so the pipeline only ever sees JPG;
-  // anything else is refused with a toast that names the format.
+  // The roll loads JPG photos by law. A pasted PNG re-encodes to JPG through
+  // the canvas on the way in; anything else is refused with a named toast.
   async function pastePhoto(file) {
     if (state.busy || !file) return;
     const mime = file.type || '';
@@ -1308,8 +1298,7 @@
       toast(`Pasted ${name} starts a new roll`);
       return;
     }
-    // Insert in name order, renumbering what follows; picks and selection
-    // stay on the shots they pointed at.
+    // Insert in name order, renumbering what follows; picks and selection stay put.
     const at = state.photos.findIndex((q) =>
       q.name.localeCompare(name, undefined, { numeric: true, sensitivity: 'base' }) > 0);
     const i = at < 0 ? state.photos.length : at;
@@ -1342,10 +1331,9 @@
   });
 
   // ---------- shared photos ----------
-  // An installed Photoset is a share target. Chrome delivers shared files as a
-  // multipart POST to the share_target action; the service worker hands them
-  // here and they run the same intake as a paste. A share launch with no
-  // usable files is answered with a toast that names the problem.
+  // An installed Photoset is a share target. Chrome delivers shared files as
+  // a multipart POST to the share_target action; the service worker hands
+  // them here and they run the same intake as a paste.
   function intakeShared(files) {
     const usable = (files || []).filter(Boolean);
     if (!usable.length) { toast('The share carried no photos the roll could load'); return; }
@@ -1367,13 +1355,11 @@
 
   // ---------- service worker (web builds only) ----------
   // Registered only in secure contexts with SW support, so file:// and plain
-  // non-SW browsers skip this silently. The relative URL keeps the registration
-  // correct under any deploy base path (GitHub Pages serves this app at /photoset/).
-  // Failures (blocked worker, unsupported browser) must never break the app.
+  // non-SW browsers skip this silently. The relative URL keeps the
+  // registration correct under any deploy base path (/photoset/ on Pages).
   if (isWeb && window.isSecureContext && 'serviceWorker' in navigator) {
     // The page reloads ONLY after the user clicked the update toast; a
-    // controllerchange from a first activation (or a background update) never
-    // triggers a reload on its own.
+    // controllerchange from a first activation never reloads on its own.
     let userClickedReload = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (userClickedReload) window.location.reload();
@@ -1392,8 +1378,7 @@
         const worker = reg.installing;
         if (!worker) return;
         worker.addEventListener('statechange', () => {
-          // A worker can only be "installed and waiting" while an older worker
-          // is still in control, which is exactly the toast case.
+          // A worker "installed and waiting" while an older worker is in control is the toast case.
           if (worker.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(worker);
         });
       });

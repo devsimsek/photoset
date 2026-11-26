@@ -20,7 +20,7 @@ export async function slideTo(page, k, v) {
 const LOOK_FIELDS = [
   'exposure', 'contrast', 'saturation', 'warmth', 'tint', 'fade', 'split',
   'shadow', 'highlight', 'grain', 'grainSize', 'vignette', 'softness',
-  'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt',
+  'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt', 'rotate',
 ];
 
 async function pasteFilm(page, film) {

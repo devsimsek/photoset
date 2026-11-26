@@ -38,6 +38,20 @@ const Engine = (() => {
     return { x: (W - cw) / 2, y: (H - ch) / 2, w: cw, h: ch };
   }
 
+  // ---------- rotation ----------
+  // Quarter turns (0/90/180/270) apply before the aspect crop: the crop rect
+  // computes on the rotated frame, so a landscape shot turned a quarter
+  // develops portrait and a 3:2 crop then frames the rotated shot 2:3.
+  function rotated(src, deg) {
+    const swap = deg === 90 || deg === 270;
+    const c = mk(swap ? src.height : src.width, swap ? src.width : src.height);
+    const x = c.getContext('2d');
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate((deg * Math.PI) / 180);
+    x.drawImage(src, -src.width / 2, -src.height / 2);
+    return c;
+  }
+
   // ---------- colour ----------
   function hexRGB(h) { const n = parseInt(String(h).slice(1), 16) || 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
   function hueOffset(hex, k) {
@@ -192,6 +206,7 @@ const Engine = (() => {
   // ---------- main render ----------
   /** src: ImageBitmap or canvas. meta: {name, date}. edge: max long edge of output. */
   function renderLook(src, meta, s, edge, aspectOverride) {
+    if (s.rotate) src = rotated(src, s.rotate);
     const cr = cropRect(src.width, src.height, aspectOverride || s.aspect);
     const outLong = Math.min(edge || Infinity, Math.max(cr.w, cr.h));
     const sc = outLong / Math.max(cr.w, cr.h);

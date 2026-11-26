@@ -102,6 +102,16 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 | Light leak | Edge glows in orange or red. Seeded by file name: the same file always leaks the same way. |
 | Flicker | Per-shot exposure wobble, like a winding motor. Also seeded by file name. |
 
+## Rotate a shot
+
+The FORMAT section offers a rotation: 0, 90, 180 or 270 degrees. The turn
+applies before the crop, so the crop rect computes on the rotated frame: a
+landscape shot turned a quarter develops as a portrait, and a 3:2 crop then
+frames the rotated shot 2:3. The rotation is part of the look: it persists
+with your settings, rides in an exported film JSON as an optional `rotate`
+key (absent means 0), and films written before the key existed import
+unchanged.
+
 ## Output settings
 
 | Setting | Meaning |
