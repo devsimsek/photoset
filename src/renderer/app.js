@@ -258,6 +258,25 @@
     applyFilm(film);
     return { film };
   }
+  // A LUT film built from a .cube file (PS-45): the parsed table becomes the
+  // film's lut, the look stays at the neutral defaults, and the TITLE (or the
+  // file name) names the film.
+  function importCube(text, filename) {
+    const r = Cube.parse(text);
+    if (r.error) return { error: r.error };
+    const name = singleLine(r.title || String(filename || '').replace(/\.cube$/i, '')) || 'Imported LUT';
+    const film = {
+      schema: 2, id: uniqueId(slugify(name), films), name, iso: 'CUBE',
+      look: { ...BASE }, lut: { name, size: r.size, table: r.table },
+    };
+    const at = films.findIndex((f) => f.id === film.id);
+    if (at >= 0) films[at] = film;
+    else films.push(film);
+    persistFilms();
+    buildStocks();
+    applyFilm(film);
+    return { film };
+  }
   function saveFilm(name, iso) {
     const film = exportFilm();
     film.name = singleLine(name) || film.name;
@@ -1369,9 +1388,11 @@
 
   // ---------- film studio ----------
   let filmDlgMode = 'save';
-  // Where the import dialog's JSON came from: pasted text refuses LUT films
-  // (the sharing cap), a chosen .json file takes them.
+  // Where the import dialog's payload came from: pasted JSON refuses LUT
+  // films (the sharing cap), a chosen .json file takes them, and a chosen
+  // .cube file imports through the cube parser.
   let filmFromText = 'paste';
+  let filmCubeText = null, filmCubeName = '';
   function openFilmDlg(mode) {
     filmDlgMode = mode;
     $('#filmDlgTitle').textContent = mode === 'import' ? 'IMPORT FILM' : mode === 'rename' ? 'RENAME FILM' : 'SAVE FILM';
@@ -1381,6 +1402,7 @@
     $('#filmShareFields').hidden = mode === 'import';
     $('#filmJson').value = '';
     filmFromText = 'paste';
+    filmCubeText = null;
     if (mode !== 'import') {
       const link = filmLink();
       if (activeLut()) {
@@ -1415,6 +1437,13 @@
   }
   function onFilmOk() {
     if (filmDlgMode === 'import') {
+      if (filmCubeText !== null) {
+        const r = importCube(filmCubeText, filmCubeName);
+        if (r.error) { toast('Refused: ' + r.error); return; }
+        $('#filmDlg').close();
+        toast(`Film “${singleLine(r.film.name)}” imported from the cube`);
+        return;
+      }
       const r = importFilm($('#filmJson').value, filmFromText === 'file');
       if (r.error) { toast('Refused: ' + r.error); return; }
       $('#filmDlg').close();
@@ -1445,6 +1474,12 @@
   $('#filmFile').onchange = async () => {
     const f = $('#filmFile').files[0];
     if (!f) return;
+    if (/\.cube$/i.test(f.name)) {
+      filmCubeText = await f.text();
+      filmCubeName = f.name;
+      return;
+    }
+    filmCubeText = null;
     $('#filmJson').value = await f.text();
     filmFromText = 'file';
   };

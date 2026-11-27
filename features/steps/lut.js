@@ -9,6 +9,90 @@ import { results } from './results.js';
 
 const { Given, When, Then } = createBdd();
 
+// ---------- .cube fixtures built in the step, not committed ----------
+
+// Rows in red-fastest order: the red index changes most rapidly.
+function cubeRows(size, per) {
+  const lines = [];
+  for (let b = 0; b < size; b++) {
+    for (let g = 0; g < size; g++) {
+      for (let r = 0; r < size; r++) {
+        const out = per(r / (size - 1), g / (size - 1), b / (size - 1));
+        lines.push(`${out[0].toFixed(6)} ${out[1].toFixed(6)} ${out[2].toFixed(6)}`);
+      }
+    }
+  }
+  return lines;
+}
+
+// A deterministic, self-describing .cube text per kind.
+function cubeText(kind, title) {
+  const L = [];
+  if (title) L.push(`TITLE "${title}"`);
+  if (kind === 'identity' || kind === 'blue lift' || kind === 'log-domain') {
+    L.push('LUT_3D_SIZE 17', 'DOMAIN_MIN 0.0 0.0 0.0', 'DOMAIN_MAX 1.0 1.0 1.0');
+    const per = kind === 'blue lift' ? (r, g, b) => [r, g, Math.min(1, b + 0.25)] : (r, g, b) => [r, g, b];
+    L.push(...cubeRows(17, per));
+    if (kind === 'log-domain') L.splice(1, 1, 'DOMAIN_MIN 0.1 0.0 0.0');
+  } else if (kind === '1d') {
+    L.push('LUT_1D_SIZE 32');
+    L.push(...cubeRows(1, (r, g, b) => [r, g, b]).slice(0, 0)); // no 3D rows
+    for (let i = 0; i < 32; i++) {
+      const v = i / 31;
+      L.push(`${v.toFixed(6)} ${v.toFixed(6)} ${v.toFixed(6)}`);
+    }
+  } else if (kind === 'size-16' || kind === 'size-66') {
+    const n = kind === 'size-16' ? 16 : 66;
+    L.push(`LUT_3D_SIZE ${n}`);
+    L.push(...cubeRows(n, (r, g, b) => [r, g, b]).slice(0, 512)); // truncated: the size refuses first
+  } else if (kind === 'short') {
+    L.push('LUT_3D_SIZE 17');
+    L.push(...cubeRows(17, (r, g, b) => [r, g, b]).slice(0, 4912)); // one row missing
+  } else if (kind === 'nan') {
+    L.push('LUT_3D_SIZE 17');
+    const rows = cubeRows(17, (r, g, b) => [r, g, b]);
+    rows[11] = 'nan 0.0 0.0';
+    L.push(...rows);
+  }
+  return L.join('\n') + '\n';
+}
+
+When(/^the photographer imports the generated "(.+?)" cube(?: titled "(.+?)")?$/, async ({ page }, kind, title) => {
+  const file = '.tmp/generated.cube';
+  writeFileSync(file, cubeText(kind, title));
+  await page.click('#importFilmBtn');
+  await page.setInputFiles('#filmFile', file);
+  await page.click('#filmOk');
+});
+
+Then(/^the import refuses naming the 1D cut$/, async ({ page }) => {
+  await expect.poll(
+    () => page.evaluate(() => document.querySelector('#toastMsg').textContent),
+    { timeout: 5000, message: 'no refusal toast naming the 1D cut appeared' },
+  ).toMatch(/1D/);
+});
+
+Then(/^the import refuses naming the non-default domain$/, async ({ page }) => {
+  await expect.poll(
+    () => page.evaluate(() => document.querySelector('#toastMsg').textContent),
+    { timeout: 5000, message: 'no refusal toast naming the non-default domain appeared' },
+  ).toMatch(/DOMAIN/);
+});
+
+Then(/^the import refuses naming the expected and found row counts$/, async ({ page }) => {
+  await expect.poll(
+    () => page.evaluate(() => document.querySelector('#toastMsg').textContent),
+    { timeout: 5000, message: 'no refusal toast naming the row counts appeared' },
+  ).toMatch(/4913/);
+});
+
+Then(/^the import refuses naming the non-finite value$/, async ({ page }) => {
+  await expect.poll(
+    () => page.evaluate(() => document.querySelector('#toastMsg').textContent),
+    { timeout: 5000, message: 'no refusal toast naming the non-finite value appeared' },
+  ).toMatch(/non-finite/);
+});
+
 // ---------- engine-pass fixtures ----------
 
 // A shot the develop pipeline sees as one flat colour.

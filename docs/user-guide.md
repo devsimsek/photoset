@@ -78,6 +78,17 @@ A look can travel: export it as a film JSON file, import one back. Films follow
   naming the range, and a table of the wrong length refuses naming the exact
   expected size. A film without a `lut` imports as before, and v1 films
   import forever, unchanged.
+- **Import a .cube file.** The import dialog also takes `.cube` LUT files.
+  Parsing happens on the device. A 3D table of 17 to 65 points imports as a
+  film: the table becomes the film's LUT, the look sliders stay neutral, and
+  the file's `TITLE` (or the file name) names the film. `#` comments and
+  blank lines are fine anywhere. These refuse with a named message: 1D
+  tables (`LUT_1D_SIZE`), sizes outside 17 to 65, a non-default
+  `DOMAIN_MIN`/`DOMAIN_MAX` or `LUT_3D_INPUT_RANGE` (a Log-input conversion
+  LUT would clip to garbage; the app feeds it sRGB frames), a table whose row
+  count is not exactly N³, and any non-finite value. Table values outside
+  0 to 1 clamp on apply. Files up to 65 points parse in well under a tenth
+  of a second; a 65-point file is about 7 MB of text.
 - **LUT films share as files only.** A LUT film is far too heavy for a QR
   code: the encoder tops out at 2,953 bytes, and a 17-point film is already
   about 20 KB. The film dialog refuses the QR and the copy-link button with a

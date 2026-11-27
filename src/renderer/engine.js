@@ -103,13 +103,8 @@ const Engine = (() => {
   // bytes, already inside [0,1]; outputs clamp and round through the 8-bit
   // write. Pure math over the stored table: the same shot and film develop
   // byte for byte, and an identity lattice returns its input exactly.
-  function lutBytes(b64) {
-    const bin = atob(b64), out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
   function lutPass(ctx, w, h, lut) {
-    const N = lut.size, N1 = N - 1, t = lutBytes(lut.table);
+    const N = lut.size, N1 = N - 1, t = Cube.decode(lut.table);
     const img = ctx.getImageData(0, 0, w, h), d = img.data;
     const dg = N * 3, db = N * N * 3; // corner strides: red, green, blue
     for (let i = 0; i < d.length; i += 4) {
