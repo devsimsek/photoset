@@ -740,6 +740,7 @@
     retireFirstHint(); // any roll load retires the first-run hint for good
     persistRoll();
     buildRollList();
+    updateActionButtons();
     updateHeader();
     updateDevNote();
     $('#empty').hidden = true;
@@ -1356,11 +1357,22 @@
 
   // ---------- develop ----------
   // label names the work on the develop button while it runs ("PRINTING…").
+  const ACTION_IDS = ['#developBtn', '#saveOneBtn', '#printBtn', '#compareBtn', '#cropBtn'];
+  const ACTION_TITLES = Object.fromEntries(ACTION_IDS.map((id) => [id, $(id).title]));
+  function updateActionButtons() {
+    const has = state.photos.length > 0;
+    for (const id of ACTION_IDS) {
+      const b = $(id);
+      b.disabled = state.busy || !has;
+      b.title = state.busy ? ACTION_TITLES[id] : has ? ACTION_TITLES[id] : 'Load a roll first';
+    }
+  }
   function setBusy(on, label) {
     state.busy = on;
     for (const id of ['#developBtn', '#saveOneBtn', '#loadBtn', '#emptyLoad', '#printBtn']) $(id).disabled = on;
     if (on) $('#developBtn').textContent = label || 'DEVELOPING…';
     else updatePickUI();
+    updateActionButtons();
   }
   const setProgress = (f) => { $('#progressBar').style.width = Math.round(f * 100) + '%'; };
 
@@ -1575,6 +1587,7 @@
   $('#saveOneBtn').onclick = () => develop(true);
   $('#pickAll').onclick = () => setPicks(state.photos.map((p) => p.idx));
   $('#pickNone').onclick = () => setPicks([]);
+  updateActionButtons(); // boot: no roll yet, the action controls wait with a reason
 
   // ---------- film studio ----------
   let filmDlgMode = 'save';
