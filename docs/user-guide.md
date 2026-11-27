@@ -55,8 +55,26 @@ stock, and Micro Mono 100 the fine-grain mono whose response leans the way a
 red filter does. Cine Flat 400 carries halation, so its highlights bloom
 red-orange; films saved from it keep the `halation` key.
 
-Touch any slider and the stock reads as *custom*. Double-click a slider label to reset
-that control to the stock's value.
+Touch any slider and the shot in view reads as *custom*: its look now differs
+from its stock. Double-click a slider label to reset that control to the
+stock's value. The stock switch and every slider land on the selected shot
+only - see [One look per shot](#one-look-per-shot).
+
+## One look per shot
+
+Every shot carries its own look. The sliders, the rotate select, the date
+stamp toggle and format, the split-tone colours, the free crop and the stock
+or film choice all land on the shot in view; the other shots keep whatever
+they had. A shot you never touched develops with the roll's base look: the
+stock and sliders the darkroom was holding when the roll loaded.
+
+Per-shot looks persist with the roll's metadata. Re-open the app and re-pick
+the folder, and each shot's look comes back with it, the same way the crop
+rectangles do. Only shots that carry a look of their own are stored - a few
+hundred bytes per shot, never pixels - so an untouched roll remembers nothing
+new. Every render honours it: a single develop, a batch, the film strips and
+the contact sheet all develop each shot with its own look, and on a strip
+each frame carries its own film's name on the edge print.
 
 ## Film studio
 
@@ -126,18 +144,18 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 
 ## The film library
 
-- **Save film** turns the current look into a film: give it a name and an ISO
-  (both display text). It appears in the stocks list with a *CUSTOM* marker and
-  is stored in the browser under `darkroom.films`; a reload brings it back.
-  Built-in stocks are never modified by the library.
-- Clicking a saved film applies its look. The film tools then appear:
-  **rename** (the name changes, the film's id and identity stay the same),
-  **save over** (writes the current sliders onto that film, same id), and
-  **delete** (removes it for good). *Save film* on an active film saves the
-  look as a new film instead.
+- **Save film** turns the shot in view's look into a film: give it a name and
+  an ISO (both display text). It appears in the stocks list with a *CUSTOM*
+  marker and is stored in the browser under `darkroom.films`; a reload brings
+  it back. Built-in stocks are never modified by the library.
+- Clicking a saved film applies its look to the shot in view. The film tools
+  then appear: **rename** (the name changes, the film's id and identity stay
+  the same), **save over** (writes the shot in view's look onto that film,
+  same id), and **delete** (removes it for good). *Save film* on an active
+  film saves the look as a new film instead.
 - Importing a film whose id already exists in the library updates that film in
-  place; otherwise it joins the library. Developing with a saved film active
-  puts the film's name on the strip edge print.
+  place; otherwise it joins the library. A shot developed with a saved film
+  puts the film's name on its frame's edge print.
 
 ## The sliders
 
@@ -171,8 +189,9 @@ that carries it keep it.
 The FORMAT section offers a rotation: 0, 90, 180 or 270 degrees. The turn
 applies before the crop, so the crop rect computes on the rotated frame: a
 landscape shot turned a quarter develops as a portrait, and a 3:2 crop then
-frames the rotated shot 2:3. The rotation is part of the look: it persists
-with your settings, rides in an exported film JSON as an optional `rotate`
+frames the rotated shot 2:3. The rotation is part of the shot's own look: it
+persists with the roll (a reload brings it back once the folder is re-picked),
+rides in an exported film JSON as an optional `rotate`
 key (absent means 0), and films written before the key existed import
 unchanged.
 

@@ -42,7 +42,8 @@ When(/^the photographer reloads the darkroom with a split shot "(.+?)"$/, async 
 });
 
 Then('the rotation is still 90 degrees', async ({ page }) => {
-  const r = await page.evaluate(() => window.__darkroom.state.s.rotate);
+  // PS-60 re-pin: the rotation is the selected shot's look, not the roll base.
+  const r = await page.evaluate(() => window.__darkroom.currentLook().rotate);
   expect(r).toBe(90);
 });
 
@@ -57,6 +58,7 @@ When('the photographer pastes a film with no rotate key', async ({ page }) => {
 });
 
 Then('the film applies with the rotation at 0', async ({ page }) => {
-  const r = await page.evaluate(() => window.__darkroom.state.s.rotate);
+  // PS-60 re-pin: the applied film is the selected shot's look.
+  const r = await page.evaluate(() => window.__darkroom.currentLook().rotate);
   expect(r, 'the imported film should leave the rotation at 0').toBe(0);
 });

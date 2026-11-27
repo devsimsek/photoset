@@ -370,9 +370,11 @@ const Engine = (() => {
   }
 
   // ---------- frames ----------
-  /** label: the edge-print film name; defaults to the house brand. numTexts
-      overrides the printed frame numbers (half-frame A/B convention). */
+  /** label: the edge-print film name, or one per frame (per-shot looks, PS-60);
+      defaults to the house brand. numTexts overrides the printed frame numbers
+      (half-frame A/B convention). */
   function composeStrip(frames, startNum, label = 'PHOTOSET 400', numTexts) {
+    const labAt = (i) => (Array.isArray(label) ? (label[i] ?? 'PHOTOSET 400') : label);
     const H = Math.max(...frames.map((f) => f.height));
     const ws = frames.map((f) => (f.width * H) / f.height);
     const band = H * 0.23, gap = H * 0.07, pad = gap;
@@ -416,7 +418,7 @@ const Engine = (() => {
       x.fillText(numTexts ? numTexts[i] : String(n), px + ws[i] / 2, TH - band * 0.13);
       if (i < frames.length - 1) x.fillText('▸' + n + 'A', px + ws[i] + gap / 2, TH - band * 0.13);
       x.textAlign = 'left';
-      x.fillText(i % 2 ? '◂ SAFETY FILM' : label, px + ws[i] * 0.12, band * 0.13);
+      x.fillText(i % 2 ? '◂ SAFETY FILM' : labAt(i), px + ws[i] * 0.12, band * 0.13);
       px += ws[i] + gap;
     });
     return c;

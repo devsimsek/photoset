@@ -61,6 +61,25 @@ URLs, or any other encoding of pixel data.
   develop skips them. A fresh load of a different folder replaces the remembered
   roll instead of merging.
 
+## Every shot carries its own look
+
+An edit lands on the selected shot only. The sliders, the rotate select, the
+date stamp toggle and format, the split-tone colours, the free crop and a
+stock or film switch all write the shot in view's own look; the other shots
+keep theirs. A shot's effective look is its own stored look when it carries
+one, and the roll's base look otherwise.
+
+- **A stock switch seeds one shot.** Choosing a stock or film applies it to
+  the shot in view; shots without a look of their own keep developing with
+  the roll's base look.
+- **Overrides persist with the roll.** A shot's look rides in the roll
+  metadata beside the crop rectangles, so a reload and a re-picked folder
+  bring it back by name. Pixels never persist; a look is a few hundred bytes,
+  and only shots that carry one are stored.
+- **Every render honours it.** The single develop, the batch, the strips and
+  the contact sheet render each shot with its own look, and a strip frame
+  carries its own film's name on the edge print.
+
 ## GPS coordinates never ship by default
 
 A developed file carries the shot's location only when the photographer turns

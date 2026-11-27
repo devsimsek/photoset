@@ -16,7 +16,6 @@
     halation: 0, // optional look key (PS-52): the default every film without it gets
     aspect: 'orig', frame: 'none', date: false, rotate: 0,
   };
-  const LOOK_KEYS = Object.keys(BASE);
   const OUTPUT_DEFAULTS = { quality: 72, maxEdge: 0, capKB: 0, mode: 'single', stripN: 4, folder: 'developed', dateFmt: 'ymd', format: 'image/jpeg', keepExif: false, gpsExif: false };
   const EXT = { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/png': 'png' };
 
@@ -72,6 +71,11 @@
     'leak', 'flicker', 'aspect', 'frame', 'date', 'dateFmt', 'rotate',
   ];
   // rotate: OPTIONAL schema v1 look key, default 0; old films still validate.
+  // The look keys that land on the SELECTED shot (PS-60): the film contract's
+  // fields plus the optional halation key. Output settings (quality, format,
+  // cap, mode, folder) stay roll-wide on state.s.
+  const LOOK_KEYS = [...LOOK_FIELDS, 'halation'];
+  const LOOK_KEY_SET = new Set(LOOK_KEYS);
   const ROTS = [0, 90, 180, 270];
   const FRAMES = ['none', '35mm', 'super8', 'instant', 'halfframe', 'sprocket'];
   const DATE_FMTS = ['ymd', 'mdy', 'dmy'];
@@ -93,7 +97,11 @@
     roll: null, photos: [], sel: -1,
     picks: [], // photo indices in the order they were picked; empty = use the whole roll
     stripHigh: 0, // highest strip_NNN handed to output; remembered across reloads
-    perPhoto: {}, // name -> per-photo look overrides (reserved; nothing edits them yet)
+    // Per-shot data keyed by file name (PS-60): an optional free crop (PS-40)
+    // and, for shots that carry one, the shot's FULL effective look plus the
+    // stock/film that look came from. Untouched shots have no entry and
+    // inherit the roll's base look; relink re-attaches entries by name.
+    perPhoto: {},
     s: { ...BASE, ...OUTPUT_DEFAULTS },
     stock: 'natural', custom: false, busy: false, lastOut: null, rollToken: 0,
   };
@@ -177,7 +185,13 @@
   const singleLine = (s) => String(s).replace(/\s+/g, ' ').trim();
   const slugify = (s) => singleLine(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'film';
   const stockById = (id) => STOCKS.find((x) => x.id === id) || films.find((f) => f.id === id) || null;
-  const activeFilm = () => films.find((f) => f.id === state.stock) || null;
+  // The film the surfaces present: the selected shot's stock, or - with no
+  // editable shot in view - the one stock every overridden shot carries (a
+  // remembered roll shows its film this way); the roll base otherwise (PS-60).
+  const activeFilm = () => films.find((f) => f.id === activeStockId()) || null;
+  // The base look's LUT: the roll base stock's film only, never an override's,
+  // so an untouched shot keeps inheriting the base look, lut included (PS-60).
+  const baseLut = () => { const f = films.find((x) => x.id === state.stock); return (f && f.lut) || null; };
   // The active film's LUT, or null when the active stock carries none. The
   // LUT lives on the film, never on the look: the look stays byte-for-byte
   // the documented v1 contract and the settings persistence stays small.
@@ -190,23 +204,34 @@
   // The look snapshot exports the required fields always; halation rides
   // along only when it is non-zero, so films written without the key stay
   // byte-identical to the films this build exported before it (PS-52).
+  // Since PS-60 the snapshot is the SELECTED shot's effective look; the base
+  // look when no shot is in view.
   const lookSnapshot = () => {
+    const p = panelShot();
+    const eff = p ? lookOf(p) : state.s;
     const look = {};
-    for (const k of LOOK_FIELDS) look[k] = state.s[k];
-    if (state.s.halation) look.halation = state.s.halation;
+    for (const k of LOOK_FIELDS) look[k] = eff[k];
+    if (eff.halation) look.halation = eff.halation;
     return look;
   };
   function exportFilm() {
-    const st = stockById(state.stock);
+    const st = stockById(activeStockId());
     const name = st ? singleLine(st.name) : 'Custom film';
     let base = slugify(name);
-    if (state.custom && STOCKS.some((x) => x.id === base)) base += '-custom'; // never a built-in's id
+    if (isCustomLook() && STOCKS.some((x) => x.id === base)) base += '-custom'; // never a built-in's id
     const lut = activeLut();
     const film = { schema: lut ? 2 : 1, id: uniqueId(base, films), name, iso: st ? String(st.iso) : 'CUSTOM', look: lookSnapshot() };
     if (lut) film.lut = lut;
     return film;
   }
   function applyFilm(film) {
+    const p = panelShot();
+    if (p) {
+      // PS-60: a film applies to the SELECTED shot as its full look override.
+      setOverride(p, { stock: film.id, look: stockLook(film, lookOf(p)) });
+      changed('look');
+      return;
+    }
     Object.assign(state.s, BASE, film.look);
     state.stock = film.id;
     state.custom = true;
@@ -434,7 +459,8 @@
     toast(`Film “${f.name}” updated`);
   }
   function deleteFilm() {
-    const i = films.findIndex((f) => f.id === state.stock);
+    // PS-60: the film the selected shot carries is the one that deletes.
+    const i = films.findIndex((f) => f.id === activeStockId());
     if (i < 0) return;
     const [gone] = films.splice(i, 1);
     persistFilms();
@@ -443,10 +469,10 @@
     toast(`Film “${singleLine(gone.name)}” deleted`);
   }
 
-  // The active film's LUT rides into the render settings next to the look:
-  // it lives on the film, never on state.s, so the settings persistence stays
-  // small. Every render path builds its settings through this.
-  const devSettings = () => ({ ...state.s, lut: activeLut() });
+  // The render settings for the roll base: the look plus the base stock's
+  // LUT. It lives on the film, never on state.s, so the settings persistence
+  // stays small. Per-shot render paths build their settings through lookOf.
+  const devSettings = () => ({ ...state.s, lut: baseLut() });
 
   // ---------- helpers ----------
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -463,6 +489,93 @@
   const stripAspect = (s) => (s.aspect === 'orig' ? '3:2' : s.aspect);
   // Free crop: fractions of the ROTATED frame, per shot, in the roll metadata.
   const cropOf = (p) => (state.perPhoto[p.name] || {}).crop || null;
+
+  // ---------- the per-shot look (PS-60) ----------
+  // The shot the editing surfaces act on: a real shot with pixels, never a
+  // remembered or missing placeholder.
+  const panelShot = () => {
+    const p = state.photos[state.sel];
+    return p && !p.remembered && !p.missing ? p : null;
+  };
+  // A shot's assigned stock/film: its override's stock, else the roll base.
+  const stockOf = (p) => {
+    const o = p && state.perPhoto[p.name];
+    return (o && o.stock) || state.stock;
+  };
+  // The stock id the film surfaces present: the selected shot's, or - with no
+  // editable shot in view - the one stock every overridden shot carries, so a
+  // remembered roll still names its film; the roll base otherwise.
+  function activeStockId() {
+    const p = panelShot();
+    if (p) return stockOf(p);
+    const ids = new Set();
+    for (const o of Object.values(state.perPhoto)) {
+      if (o && o.look && o.stock) ids.add(o.stock);
+    }
+    return ids.size === 1 ? [...ids][0] : state.stock;
+  }
+  // A shot's effective look: its own full override over the defaults, or the
+  // roll base. The LUT comes from the shot's film, never from the look
+  // itself (ADR 0006).
+  function lookOf(p) {
+    const o = p && state.perPhoto[p.name];
+    if (o && o.look) {
+      const f = films.find((x) => x.id === o.stock);
+      return { ...state.s, ...BASE, ...o.look, lut: (f && f.lut) || null };
+    }
+    return { ...state.s, lut: baseLut() };
+  }
+  // The look that drives roll-wide composition decisions (half-frame
+  // pairing): the shot in view when one is editable, the roll base otherwise.
+  const panelMode = () => { const p = panelShot(); return p ? lookOf(p) : state.s; };
+  // The edge-print label for a shot's film; built-ins keep the house default.
+  const labelOf = (p) => {
+    const st = stockById(stockOf(p));
+    return st && films.includes(st) ? String(st.name).replace(/\n/g, ' ') : undefined;
+  };
+  // Whether a look reads as custom: it differs from its stock's canonical
+  // look, built the same way a stock switch builds an override (a stock never
+  // defines a date format, so the shot's own carries through).
+  function lookDiffers(look, st) {
+    const base = { ...BASE, dateFmt: look.dateFmt, ...(st ? st.look : {}) };
+    return LOOK_KEYS.some((k) => look[k] !== base[k]);
+  }
+  function isCustomLook() {
+    const p = panelShot();
+    const o = p && state.perPhoto[p.name];
+    if (p && o && o.look) return lookDiffers(o.look, stockById(o.stock));
+    return state.custom;
+  }
+  // A stock switch seeds the stock's look over the defaults, carrying the
+  // shot's current date format the way the old global assign did.
+  function stockLook(st, eff) {
+    return { ...BASE, dateFmt: eff.dateFmt, ...st.look };
+  }
+  // Writes a shot's full look override (sparse: untouched shots carry no
+  // entry) and remembers it with the roll.
+  function setOverride(p, next) {
+    const o = state.perPhoto[p.name] || (state.perPhoto[p.name] = {});
+    o.stock = next.stock;
+    o.look = next.look;
+    persistRoll();
+    syncControls();
+  }
+  // One look edit on the panel: it lands on the SELECTED shot's override,
+  // seeded with the shot's full effective look. Without an editable shot the
+  // edit seeds the roll base, as before. Returns false when the shot refuses
+  // the edit (a remembered or missing placeholder); PS-61 names that refusal.
+  function editSelected(k, v) {
+    const p = panelShot();
+    if (!p) { state.s[k] = v; state.custom = true; updateStockLabel(); return true; }
+    if (p.remembered || p.missing) return false;
+    const eff = lookOf(p);
+    const look = {};
+    for (const kk of LOOK_KEYS) look[kk] = eff[kk];
+    look[k] = v;
+    setOverride(p, { stock: stockOf(p), look });
+    return true;
+  }
+
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
   // The shots that get developed: picks in pick order, or the whole roll.
   const sequence = () => {
@@ -524,7 +637,7 @@
       const input = Object.assign(document.createElement('input'), { type: 'range', min, max, step });
       input.dataset.k = k;
       lab.ondblclick = () => {
-        const st = stockById(state.stock);
+        const st = stockById(activeStockId());
         input.value = (st.look[k] ?? BASE[k]);
         input.dispatchEvent(new Event('input'));
       };
@@ -535,6 +648,15 @@
   function applyStock(id) {
     const st = stockById(id);
     if (!st) return;
+    const p = panelShot();
+    if (p) {
+      // PS-60: a stock switch seeds the SELECTED shot's look. A placeholder
+      // takes no stock (PS-61 names that refusal).
+      if (p.remembered || p.missing) return;
+      setOverride(p, { stock: id, look: stockLook(st, lookOf(p)) });
+      changed('look');
+      return;
+    }
     Object.assign(state.s, BASE, st.look);
     state.stock = id;
     state.custom = !STOCKS.includes(st);
@@ -542,10 +664,11 @@
     changed('look');
   }
   function updateStockLabel() {
-    const st = stockById(state.stock) || { name: '?' };
-    $('#stockName').textContent = st.name.replace('\n', ' ') + (state.custom ? ' · custom' : '');
-    document.querySelectorAll('.stock').forEach((b) => b.classList.toggle('active', b.dataset.id === state.stock));
-    $('#filmEdit').hidden = !films.some((f) => f.id === state.stock);
+    const id = activeStockId();
+    const st = stockById(id) || { name: '?' };
+    $('#stockName').textContent = st.name.replace('\n', ' ') + (isCustomLook() ? ' · custom' : '');
+    document.querySelectorAll('.stock').forEach((b) => b.classList.toggle('active', b.dataset.id === id));
+    $('#filmEdit').hidden = !films.some((f) => f.id === id);
   }
   function paintControl(input) {
     if (input.type !== 'range') return;
@@ -558,8 +681,14 @@
     }
   }
   function syncControls() {
+    // PS-60: the look controls show the selected shot's effective look; the
+    // output controls stay roll-wide. With no editable shot in view the panel
+    // shows the roll base.
+    const p = panelShot();
+    const eff = p ? lookOf(p) : state.s;
     document.querySelectorAll('[data-k]').forEach((input) => {
-      const v = state.s[input.dataset.k];
+      const k = input.dataset.k;
+      const v = LOOK_KEY_SET.has(k) ? eff[k] : state.s[k];
       if (input.type === 'checkbox') input.checked = !!v;
       else if (input.dataset.k === 'capKB') input.value = v ? String(v) : '';
       else input.value = String(v);
@@ -581,15 +710,24 @@
           const n = parseFloat(input.value);
           v = isFinite(n) ? n : 0; // an emptied number field means off
         } else v = input.value;
-        state.s[k] = v;
-        if (LOOK_KEYS.includes(k)) { state.custom = true; updateStockLabel(); }
+        if (LOOK_KEY_SET.has(k)) {
+          // PS-60: a look edit lands on the selected shot only. A refused
+          // edit snaps the panel back to the shot's look.
+          if (!editSelected(k, v)) { syncControls(); return; }
+        } else {
+          state.s[k] = v;
+          if (k === 'mode') syncControls();
+          if (k === 'mode' || k === 'stripN') { refreshItems(); updatePickUI(); updateFrameInfo(); }
+        }
         paintControl(input);
-        if (k === 'mode') syncControls();
-        if (k === 'mode' || k === 'stripN') { refreshItems(); updatePickUI(); updateFrameInfo(); }
         changed(k);
       });
     });
-    $('#resetLook').onclick = () => applyStock(state.stock);
+    $('#resetLook').onclick = () => {
+      const p = panelShot();
+      if (p) applyStock(stockOf(p)); // resets the shot to its own stock (PS-61 clears the override)
+      else applyStock(state.stock);
+    };
   }
   function changed(k) {
     persist();
@@ -996,25 +1134,29 @@
   }
 
   // ---------- edge print ----------
-  // Custom films print their name on the strip edge.
+  // Custom films print their name on the strip edge. A strip composites every
+  // frame with its own look (PS-60), so the labels travel as an array.
   const edgeLabel = () => {
     const st = stockById(state.stock);
     return st && films.includes(st) ? String(st.name).replace(/\n/g, ' ') : undefined;
   };
-  function composeStripLabeled(frames, startNum) {
-    const label = edgeLabel();
-    state.lastStripLabel = label ?? null;
+  function composeStripLabeled(frames, startNum, group) {
+    const label = group ? group.map(labelOf) : edgeLabel();
+    state.lastStripLabel = (Array.isArray(label) ? label[0] : label) ?? null;
     return Engine.composeStrip(frames, startNum, label);
   }
-  // Half-frame composition records the A/B edge print for the scenarios.
-  function composeHalfLabeled(a, b, num) {
-    const label = edgeLabel();
+  // Half-frame composition records the A/B edge print for the scenarios; the
+  // pair's label is the A side's film.
+  function composeHalfLabeled(a, b, num, lead) {
+    const label = lead ? labelOf(lead) : edgeLabel();
     state.lastStripLabel = label ?? null;
     state.lastEdgeNums = [Engine.halfPrint(num, !!b)];
     return Engine.composeHalfFrame(a, b, num, label);
   }
-  function applyFrameLabeled(c, s, index) {
-    const label = s.frame === '35mm' ? edgeLabel() : undefined;
+  // A single shot wraps in its own frame with its own look and label (PS-60).
+  function applyShotFrame(c, p, index) {
+    const s = lookOf(p);
+    const label = s.frame === '35mm' ? labelOf(p) : undefined;
     state.lastStripLabel = label ?? null;
     return Engine.applyFrame(c, s, index, label);
   }
@@ -1044,7 +1186,7 @@
     if (state.s.mode === 'strip') {
       const g = groupOf(p, state.s.stripN);
       parts.push(g >= 0 ? `strip ${g + 1} of ${stripGroups(state.s.stripN).length}` : 'not on a strip');
-    } else if (isHalf(state.s)) {
+    } else if (isHalf(panelMode())) {
       const g = halfOf(p);
       parts.push(g >= 0 ? `half-frame ${g + 1} of ${halfGroups().length}` : 'not on a half-frame');
     }
@@ -1079,31 +1221,31 @@
     const p = state.photos[state.sel];
     previewName = p ? p.name : 'the shot';
     if (!p || p.remembered || p.missing) return;
-    const s = devSettings();
+    const s = devSettings(); // the output settings: mode, frames per strip
     let out;
     const inStrip = s.mode !== 'strip' || groupOf(p, s.stripN) >= 0;
     if (state.cropMode) {
       // Crop mode shows the full rotated frame; the crop rect overlays it.
-      out = Engine.renderLook(await getSource(p), p, s, PREV_EDGE, 'orig');
-    } else if (isHalf(s)) {
+      out = Engine.renderLook(await getSource(p), p, lookOf(p), PREV_EDGE, 'orig');
+    } else if (isHalf(panelMode())) {
       const g = halfOf(p);
       const group = g >= 0 ? halfGroups()[g] : [p];
       const frames = [];
       for (const q of group) {
-        frames.push(Engine.renderLook(await getSource(q), q, s, STRIP_PREV_EDGE, null, cropOf(q)));
+        frames.push(Engine.renderLook(await getSource(q), q, lookOf(q), STRIP_PREV_EDGE, null, cropOf(q)));
       }
-      out = composeHalfLabeled(frames[0], frames[1] || null, g + 1);
+      out = composeHalfLabeled(frames[0], frames[1] || null, g + 1, group[0]);
     } else if (s.mode === 'strip') {
       const g = groupOf(p, s.stripN);
       const group = g >= 0 ? stripGroups(s.stripN)[g] : [p];
       const frames = [];
       for (const q of group) {
-        frames.push(Engine.renderLook(await getSource(q), q, s, STRIP_PREV_EDGE, stripAspect(s), cropOf(q)));
+        frames.push(Engine.renderLook(await getSource(q), q, lookOf(q), STRIP_PREV_EDGE, stripAspect(lookOf(q)), cropOf(q)));
       }
-      out = composeStripLabeled(frames, g >= 0 ? g * s.stripN + 1 : 1);
+      out = composeStripLabeled(frames, g >= 0 ? g * s.stripN + 1 : 1, group);
     } else {
       const src = await getSource(p);
-      out = applyFrameLabeled(Engine.renderLook(src, p, s, PREV_EDGE, null, cropOf(p)), s, state.sel);
+      out = applyShotFrame(Engine.renderLook(src, p, lookOf(p), PREV_EDGE, null, cropOf(p)), p, state.sel);
     }
     showCanvas(out);
     state.lastOut = out;
@@ -1192,9 +1334,11 @@
   });
 
   // ---------- full-resolution renders ----------
+  // Every render path resolves each shot's own look through lookOf (PS-60);
+  // the passed settings only carry the output keys (max edge, frames per strip).
   async function renderSingleFull(p, s) {
     const bmp = await decode(p);
-    try { return applyFrameLabeled(Engine.renderLook(bmp, p, s, s.maxEdge || Infinity, null, cropOf(p)), s, p.idx); }
+    try { return applyShotFrame(Engine.renderLook(bmp, p, lookOf(p), s.maxEdge || Infinity, null, cropOf(p)), p, p.idx); }
     finally { dropSource(bmp); }
   }
   async function renderStripFull(gi, s) {
@@ -1203,9 +1347,9 @@
     const frames = [];
     for (const q of group) {
       const bmp = await decode(q);
-      try { frames.push(Engine.renderLook(bmp, q, s, edge, stripAspect(s), cropOf(q))); } finally { dropSource(bmp); }
+      try { frames.push(Engine.renderLook(bmp, q, lookOf(q), edge, stripAspect(lookOf(q)), cropOf(q))); } finally { dropSource(bmp); }
     }
-    return { canvas: composeStripLabeled(frames, gi * s.stripN + 1), group };
+    return { canvas: composeStripLabeled(frames, gi * s.stripN + 1, group), group };
   }
   async function renderHalfFull(gi, s, num) {
     const group = halfGroups()[gi];
@@ -1213,9 +1357,9 @@
     const frames = [];
     for (const q of group) {
       const bmp = await decode(q);
-      try { frames.push(Engine.renderLook(bmp, q, s, edge, null, cropOf(q))); } finally { dropSource(bmp); }
+      try { frames.push(Engine.renderLook(bmp, q, lookOf(q), edge, null, cropOf(q))); } finally { dropSource(bmp); }
     }
-    return { canvas: composeHalfLabeled(frames[0], frames[1] || null, num), group };
+    return { canvas: composeHalfLabeled(frames[0], frames[1] || null, num, group[0]), group };
   }
 
   // ---------- size estimate ----------
@@ -1267,7 +1411,7 @@
         const r = await renderStripFull(Math.max(0, groupOf(state.photos[state.sel], s.stripN)), s);
         canvas = r.canvas;
         before = r.group.reduce((a, q) => a + q.size, 0);
-      } else if (isHalf(s)) {
+      } else if (isHalf(panelMode())) {
         const r = await renderHalfFull(Math.max(0, halfOf(state.photos[state.sel])), s, 1);
         canvas = r.canvas;
         before = r.group.reduce((a, q) => a + q.size, 0);
@@ -1314,7 +1458,7 @@
     if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
     const s = devSettings(), folder = safeFolder(s.folder);
     const strip = s.mode === 'strip';
-    const half = isHalf(s);
+    const half = isHalf(panelMode());
     const cur = state.photos[state.sel];
     if (onlyCurrent && cur && cur.missing) { toast('That shot is missing from the folder, so there is nothing to develop.'); return; }
     const jobs = strip
@@ -1414,7 +1558,7 @@
     if (state.busy || !state.photos.length) return;
     if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
     const s = devSettings();
-    const half = isHalf(s);
+    const half = isHalf(panelMode());
     const groups = half ? halfGroups() : stripGroups(s.stripN);
     if (!groups.length) { toast('Nothing to print: the whole roll is missing from the folder.'); return; }
     setBusy(true, 'PRINTING…');
@@ -1492,7 +1636,10 @@
   function hideOriginal() { if (state.lastOut) showCanvas(state.lastOut); }
 
   // ---------- wiring ----------
-  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, filmLink, printContactSheet, whenReady: () => prepPromise }; // debugging / smoke tests
+  window.__darkroom = { loadRoll, develop, applyStock, togglePick, setPicks, select, state, exportFilm, importFilm, filmLink, printContactSheet, whenReady: () => prepPromise,
+    // PS-60 probes for the suite: the shot in view resolves its own look.
+    currentLook: () => { const p = panelShot(); return p ? lookOf(p) : { ...state.s, lut: baseLut() }; },
+    currentStock: () => activeStockId() }; // debugging / smoke tests
   window.__intakeLog = []; // accounting for the BDD suite and debugging
   api.onIntakeProgress((done, total) => {
     showIntake(total ? `Reading ${done} / ${total}…` : 'Reading the folder…');
@@ -1560,7 +1707,7 @@
       $('#filmName').value = f ? singleLine(f.name) : '';
       $('#filmIso').value = f ? f.iso : '';
     } else if (mode === 'save') {
-      const st = stockById(state.stock);
+      const st = stockById(activeStockId());
       $('#filmName').value = st ? singleLine(st.name) : '';
       $('#filmIso').value = st ? String(st.iso) : 'CUSTOM';
     } else {

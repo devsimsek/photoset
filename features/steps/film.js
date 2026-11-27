@@ -114,17 +114,20 @@ Then('the download is a schema v1 film named for the active stock', async () => 
 Then('re-importing that film re-applies the exact look', async ({ page }) => {
   const film = results.film.json;
   await page.evaluate(() => window.__darkroom.applyStock('natural'));
-  expect(await page.evaluate(() => window.__darkroom.state.s.exposure)).toBe(0);
+  // PS-60 re-pin: the look lives on the selected shot now, so "re-applied"
+  // reads the shot's effective look and stock, not the roll base state.s.
+  expect(await page.evaluate(() => window.__darkroom.currentLook().exposure)).toBe(0);
   await pasteFilm(page, film);
-  const s = await page.evaluate(() => window.__darkroom.state.s);
+  const s = await page.evaluate(() => window.__darkroom.currentLook());
   for (const k of LOOK_FIELDS) expect(s[k]).toBe(film.look[k]);
-  expect(await page.evaluate(() => window.__darkroom.state.stock)).toBe(film.id);
+  expect(await page.evaluate(() => window.__darkroom.currentStock())).toBe(film.id);
 });
 
 Then('the imported look applies with exposure 25', async ({ page }) => {
-  const s = await page.evaluate(() => window.__darkroom.state.s);
+  // PS-60 re-pin: reads the selected shot's effective look and stock.
+  const s = await page.evaluate(() => window.__darkroom.currentLook());
   expect(s.exposure).toBe(25);
-  expect(await page.evaluate(() => window.__darkroom.state.stock)).toBe('koda-test');
+  expect(await page.evaluate(() => window.__darkroom.currentStock())).toBe('koda-test');
 });
 
 Then('the darkroom look is unchanged', async ({ page }) => {

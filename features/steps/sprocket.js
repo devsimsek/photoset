@@ -9,6 +9,13 @@ const { When, Then } = createBdd();
 
 When(/^the photographer chose the sprocket frame$/, async ({ page }) => {
   await page.selectOption('#frameSel', 'sprocket');
+  // PS-60 re-pin: the frame is a per-shot look key now, so this roll-wide pin
+  // applies it to every shot in view (APPLY TO ALL arrives with PS-61).
+  await page.evaluate(() => {
+    const st = window.__darkroom.state;
+    for (let i = 0; i < st.photos.length; i++) window.__darkroom.select(i);
+  });
+  await page.selectOption('#frameSel', 'sprocket');
 });
 
 const HOLES = [

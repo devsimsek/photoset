@@ -430,7 +430,8 @@ Then(/^the import refuses with a message naming the paste cap$/, async ({ page }
 Then(/^the imported film is schema 2 named "(.+?)"$/, async ({ page }, name) => {
   const film = await page.evaluate(() => {
     const films = JSON.parse(localStorage.getItem('darkroom.films') || '[]');
-    return films.find((f) => f.id === window.__darkroom.state.stock) || null;
+    // PS-60 re-pin: the imported film is the selected shot's stock.
+    return films.find((f) => f.id === window.__darkroom.currentStock()) || null;
   });
   expect(film, 'the imported film is not active').toBeTruthy();
   expect(film.schema).toBe(2);

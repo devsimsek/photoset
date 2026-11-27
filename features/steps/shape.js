@@ -34,7 +34,9 @@ async function importFilmFile(page, film) {
   await page.click('#importFilmBtn');
   await page.fill('#filmJson', JSON.stringify(film));
   await page.click('#filmOk');
-  const applied = await page.evaluate((id) => window.__darkroom.state.stock === id, film.id);
+  // PS-60 re-pin: a film applies to the SELECTED shot, so "applied" reads the
+  // shot's stock; state.stock is the roll base now.
+  const applied = await page.evaluate((id) => window.__darkroom.currentStock() === id, film.id);
   expect(applied, `the film ${film.name} was refused`).toBe(true);
 }
 
