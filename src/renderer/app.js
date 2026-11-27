@@ -514,69 +514,6 @@
       b.onclick = () => applyStock(st.id);
       box.append(b);
     }
-    // The library changed (new, renamed or updated films): their previews are
-    // stale, so the cache goes and the thumbnails rebuild off the click path.
-    stockPrevCache.clear();
-    scheduleStockPreviews();
-  }
-
-  // ---------- stock previews (PS-54) ----------
-  // Every stock button carries a live thumbnail of the current shot developed
-  // through that stock: the develop pipeline itself at 96x72, frames off. The
-  // cache keys on (shot, stock) and clears on roll, crop and library changes;
-  // building runs off the click path through idle callbacks, one stock per
-  // frame, so the active stock's thumbnail never blocks selection.
-  const PREV_W = 96, PREV_H = 72;
-  const stockPrevCache = new Map();
-  let stockPrevJob = 0;
-
-  function scheduleStockPreviews() {
-    if (!state.photos.length) return;
-    stockPrevJob++;
-    const kick = () => runStockPreviews(stockPrevJob);
-    if (typeof requestIdleCallback === 'function') requestIdleCallback(kick, { timeout: 400 });
-    else requestAnimationFrame(kick);
-  }
-
-  async function runStockPreviews(job) {
-    const p = state.photos[state.sel];
-    if (!p || p.remembered || p.missing) return;
-    for (const st of STOCKS.concat(films)) {
-      if (job !== stockPrevJob) return; // a new selection or roll took over
-      const key = `${p.name}|${st.id}`;
-      if (stockPrevCache.has(key)) continue;
-      let canvas;
-      try {
-        const src = await getSource(p);
-        if (job !== stockPrevJob) return;
-        const s = { ...BASE, ...st.look, frame: 'none', lut: st.lut || null };
-        canvas = Engine.renderLook(src, p, s, PREV_W, null, cropOf(p));
-      } catch (e) {
-        console.warn('stock preview failed', st.id, e);
-        continue; // one bad stock never stops the rest
-      }
-      stockPrevCache.set(key, canvas);
-      paintStockPreview(st.id, canvas);
-      await nextFrame(); // chunked: one stock per frame keeps the UI moving
-    }
-  }
-
-  function paintStockPreview(id, canvas) {
-    const b = document.querySelector(`.stock[data-id="${CSS.escape(id)}"]`);
-    if (!b) return;
-    let cv = b.querySelector('canvas.s-prev');
-    if (!cv) {
-      cv = document.createElement('canvas');
-      cv.className = 's-prev';
-      cv.width = PREV_W;
-      cv.height = PREV_H;
-      b.insertBefore(cv, b.firstChild);
-    }
-    const x = cv.getContext('2d');
-    const sc = Math.max(PREV_W / canvas.width, PREV_H / canvas.height);
-    x.imageSmoothingQuality = 'high';
-    x.drawImage(canvas, (PREV_W - canvas.width * sc) / 2, (PREV_H - canvas.height * sc) / 2, canvas.width * sc, canvas.height * sc);
-    canvas.width = canvas.height = 0; // the look canvas is spent
   }
   function buildSliders() {
     const box = $('#sliders');
@@ -708,7 +645,6 @@
     rearmRawAbort(); // any RAW decode of the previous roll is dead weight now
     for (const p of state.photos) if (p.thumb) URL.revokeObjectURL(p.thumb);
     previewCache.clear();
-    stockPrevCache.clear(); // the roll changed: every stock thumbnail is stale
     state.roll = roll;
     state.photos = roll.files.map((f, i) => {
       const m = relink && meta.photos.find((x) => x.name === f.name);
@@ -1095,7 +1031,6 @@
     if (p.el) { p.el.classList.add('sel'); p.el.scrollIntoView({ block: 'nearest' }); }
     updateFrameInfo();
     schedulePreview();
-    scheduleStockPreviews();
   }
   function updateFrameInfo() {
     const p = state.photos[state.sel];
@@ -1207,8 +1142,6 @@
     if (r) m.crop = r;
     else { delete m.crop; if (!Object.keys(m).length) delete state.perPhoto[p.name]; }
     persistRoll();
-    stockPrevCache.clear(); // the shot's crop changed: its thumbnails are stale
-    scheduleStockPreviews();
     schedulePreview();
   }
   function setCropMode(on) {
