@@ -137,11 +137,24 @@ A look can travel: export it as a film JSON file, import one back. Films follow
 | Warmth, Tint | Colour cast; warm shifts reds up, tint shifts green/magenta. |
 | Fade | Lifts blacks, washes the image toward the film's paper base. |
 | Split tone | Tints shadows toward the shadow colour and highlights toward the highlight colour. |
-| Grain, Grain size | Film grain amount and clump size. Like the leak and the flicker, the grain is seeded by file name: the same file with the same film develops identically every time, and two shots that differ only by name still grain differently. |
+| Grain, Grain size | Film grain amount and clump size. The grain layers per emulsion channel (green strongest, blue weakest) and answers to density: it lives in the mid-tones and thins out in deep shadows and specular highlights. Like the leak and the flicker, the grain is seeded by file name: the same file with the same film develops identically every time, and two shots that differ only by name still grain differently. |
 | Vignette | Corners fall off. |
 | Softness | Low-frequency lens/halation blur. |
 | Light leak | Edge glows in orange or red. Seeded by file name: the same file always leaks the same way. |
 | Flicker | Per-shot exposure wobble, like a winding motor. Also seeded by file name. |
+
+## Film-shaped colour
+
+Contrast is a curve, not a slope: highlights roll off a shoulder instead of
+clipping to white, shadows settle in a toe, and black, white and mid-gray stay
+put. At contrast 0 the develop is the identity.
+
+Some stocks carry halation: a red-orange glow around the frame's brightest
+regions, the way a cine film blooms around practical lights. It is
+content-aware: a dark frame barely glows, a shot with bright lights blooms.
+The strength rides in an optional `halation` film key (0 to 100, default 0);
+films written without the key import unchanged, and films saved from a stock
+that carries it keep it.
 
 ## Rotate a shot
 

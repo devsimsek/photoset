@@ -13,6 +13,7 @@
     exposure: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0, fade: 0,
     split: 0, shadow: '#2f6a72', highlight: '#ffb46a',
     grain: 0, grainSize: 1.5, vignette: 0, softness: 0, leak: 0, flicker: 0,
+    halation: 0, // optional look key (PS-52): the default every film without it gets
     aspect: 'orig', frame: 'none', date: false, rotate: 0,
   };
   const LOOK_KEYS = Object.keys(BASE);
@@ -168,7 +169,15 @@
     while (taken.some((x) => x.id === id)) id = `${base}-${n++}`;
     return id;
   }
-  const lookSnapshot = () => { const look = {}; for (const k of LOOK_FIELDS) look[k] = state.s[k]; return look; };
+  // The look snapshot exports the required fields always; halation rides
+  // along only when it is non-zero, so films written without the key stay
+  // byte-identical to the films this build exported before it (PS-52).
+  const lookSnapshot = () => {
+    const look = {};
+    for (const k of LOOK_FIELDS) look[k] = state.s[k];
+    if (state.s.halation) look.halation = state.s.halation;
+    return look;
+  };
   function exportFilm() {
     const st = stockById(state.stock);
     const name = st ? singleLine(st.name) : 'Custom film';
@@ -200,10 +209,16 @@
     if (typeof raw.iso !== 'string') return 'film iso must be text';
     const look = raw.look;
     if (!look || typeof look !== 'object' || Array.isArray(look)) return 'film look is missing';
-    for (const k of Object.keys(look)) if (!LOOK_FIELDS.includes(k)) return `unknown look key "${k}"`;
+    for (const k of Object.keys(look)) if (!LOOK_FIELDS.includes(k) && k !== 'halation') return `unknown look key "${k}"`;
     for (const k of LOOK_FIELDS) if (!(k in look) && k !== 'rotate') return `look is missing "${k}"`;
     if ('rotate' in look && !ROTS.includes(look.rotate)) {
       return `unknown rotate ${JSON.stringify(look.rotate)} (use 0, 90, 180 or 270)`;
+    }
+    // halation: OPTIONAL schema v1 look key, default 0 (PS-52); films written
+    // before the key existed import unchanged.
+    if ('halation' in look) {
+      if (typeof look.halation !== 'number' || !isFinite(look.halation)) return 'halation must be a number';
+      if (look.halation < 0 || look.halation > 100) return `halation ${look.halation} is out of range (0 to 100)`;
     }
     for (const [k, , min, max] of SLIDERS) {
       const v = look[k];

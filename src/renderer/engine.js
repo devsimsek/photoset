@@ -63,18 +63,33 @@ const Engine = (() => {
   }
 
   // The 256-entry per-channel curve: exposure (f-stop style, 2^(exposure/100),
-  // plus flicker), contrast, fade, warmth/tint gains. Exported so the .cube
-  // bake evaluates the exact same table (PS-46).
+  // plus flicker), an S-curve contrast, fade, warmth/tint gains. Exported so
+  // the .cube bake evaluates the exact same table (PS-46).
+  //
+  // Contrast is a smoothstep-shaped reinforcement around the 0.5 pivot
+  // (PS-52): black, white and the pivot stay put, highlights roll off a
+  // shoulder instead of clipping, and shadows settle in a toe. At contrast 0
+  // the curve is the identity. A negative contrast mixes toward flat with the
+  // same strength the old linear slope moved the endpoints.
+  function sCurve(v, ct) {
+    if (!ct) return v;
+    if (ct > 0) {
+      const x = v < 0 ? 0 : v > 1 ? 1 : v;
+      return v + ct * (x * x * (3 - 2 * x) - v);
+    }
+    const k = -ct * 0.9;
+    return v + k * (0.5 - v);
+  }
   function curveLUT(s, flick) {
     const ev = Math.pow(2, s.exposure / 100 + (flick || 0));
-    const c = 1 + (s.contrast / 100) * 0.9;
+    const ct = s.contrast / 100;
     const fade = (s.fade / 100) * 0.32;
     const gains = [1 + (s.warmth / 100) * 0.15, 1 - (s.tint / 100) * 0.1, 1 - (s.warmth / 100) * 0.15];
     const lut = [new Float32Array(256), new Float32Array(256), new Float32Array(256)];
     for (let ch = 0; ch < 3; ch++) {
       for (let i = 0; i < 256; i++) {
         let v = (i / 255) * ev;
-        v = (v - 0.5) * c + 0.5;
+        v = sCurve(v, ct);
         v = v < 0 ? 0 : v > 1 ? 1 : v;
         v *= gains[ch];
         v = fade + v * (1 - fade * 0.6);
@@ -173,14 +188,38 @@ const Engine = (() => {
     ctx.restore();
   }
 
-  function grain(ctx, w, h, amt, size, rng) {
+  // Grain with emulsion layering (PS-52): the noise deviation is weighted per
+  // channel (green strongest, blue weakest, as the emulsion's layers respond)
+  // and a density mask sampled from the developed frame weighs each noise
+  // pixel by its mid-tone distance, so grain lives in the mid-tones and thins
+  // out in deep shadows and specular highlights. The seeded rng stream and the
+  // overlay composite are unchanged: the same shot and film still develop byte
+  // for byte. `uniform` keeps the old flat monochrome grain (the instant
+  // paper's texture is a paper grain, not an emulsion).
+  const GRAIN_GAINS = [0.8, 1.0, 0.6]; // red, green, blue
+  function grain(ctx, w, h, amt, size, rng, uniform) {
     const L = Math.max(w, h), gs = Math.max(1, (size * L) / 1600);
     const nw = Math.max(1, Math.ceil(w / gs)), nh = Math.max(1, Math.ceil(h / gs));
     const n = mk(nw, nh), nx = n.getContext('2d');
     const id = nx.createImageData(nw, nh), d = id.data;
     for (let i = 0; i < d.length; i += 4) {
       const v = 128 + (rng() + rng() - 1) * 140;
-      d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+      if (uniform) { d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; continue; }
+      for (let c = 0; c < 3; c++) d[i + c] = 128 + (v - 128) * GRAIN_GAINS[c];
+      d[i + 3] = 255;
+    }
+    if (!uniform) {
+      // Density: the developed frame sampled at the noise resolution; 4t(1-t)
+      // over t = luma/255 is full strength at mid-gray and a quarter at the
+      // extremes, so the noise alpha carries the emulsion's density response.
+      const small = mk(nw, nh), sx = small.getContext('2d', { willReadFrequently: true });
+      sx.drawImage(ctx.canvas, 0, 0, nw, nh);
+      const sd = sx.getImageData(0, 0, nw, nh).data;
+      for (let i = 0; i < d.length; i += 4) {
+        const t = (0.299 * sd[i] + 0.587 * sd[i + 1] + 0.114 * sd[i + 2]) / 255;
+        d[i + 3] = 255 * (0.25 + 0.75 * 4 * t * (1 - t));
+      }
+      small.width = small.height = 0;
     }
     nx.putImageData(id, 0, 0);
     ctx.save();
@@ -189,6 +228,49 @@ const Engine = (() => {
     ctx.imageSmoothingEnabled = gs > 1.5;
     ctx.drawImage(n, 0, 0, nw * gs, nh * gs);
     ctx.restore();
+  }
+
+  // ---------- halation (PS-52) ----------
+  // Cinestill-style red glow around bright lights: the frame's bright regions
+  // are extracted at reduced resolution (a luma threshold the key scales),
+  // tinted toward the film's highlight colour shifted red-orange, blurred and
+  // screened back on top. Pure math over the frame, no randomness: the same
+  // shot and film reproduce byte for byte. A dark frame builds an empty mask
+  // and barely glows; a bright light blooms.
+  const HALATION_TINT = [255, 74, 16]; // the red-orange the tint leans toward
+  function halation(ctx, w, h, amt, highlight) {
+    const a = amt / 100;
+    const thr = 0.92 - a * 0.3; // stronger keys reach dimmer brights
+    const down = Math.max(1, Math.round(Math.max(w, h) / 480));
+    const mw = Math.max(1, Math.round(w / down)), mh = Math.max(1, Math.round(h / down));
+    const m = mk(mw, mh), mx = m.getContext('2d', { willReadFrequently: true });
+    mx.drawImage(ctx.canvas, 0, 0, mw, mh);
+    const src = mx.getImageData(0, 0, mw, mh).data;
+    const [hr, hg, hb] = hexRGB(highlight);
+    const tr = hr * 0.4 + HALATION_TINT[0] * 0.6, tg = hg * 0.4 + HALATION_TINT[1] * 0.6, tb = hb * 0.4 + HALATION_TINT[2] * 0.6;
+    const id = mx.createImageData(mw, mh), d = id.data;
+    for (let p = 0; p < d.length; p += 4) {
+      const l = (0.299 * src[p] + 0.587 * src[p + 1] + 0.114 * src[p + 2]) / 255;
+      if (l > thr) {
+        d[p] = tr; d[p + 1] = tg; d[p + 2] = tb;
+        d[p + 3] = 255 * Math.min(1, (l - thr) / (1 - thr));
+      }
+    }
+    mx.putImageData(id, 0, 0);
+    // Two scales: a tight rim glow and a wide bloom, the way a printed
+    // halation halo carries both a bright edge and a broad haze.
+    const L = Math.max(w, h);
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.filter = `blur(${(L * (0.02 + a * 0.025)).toFixed(2)}px)`;
+    ctx.globalAlpha = 0.5 + a * 0.45;
+    ctx.drawImage(m, 0, 0, w, h);
+    ctx.filter = `blur(${(L * (0.05 + a * 0.06)).toFixed(2)}px)`;
+    ctx.globalAlpha = 0.25 + a * 0.35;
+    ctx.drawImage(m, 0, 0, w, h);
+    ctx.filter = 'none';
+    ctx.restore();
+    m.width = m.height = 0;
   }
 
   // ---------- seven-segment date stamp ----------
@@ -279,6 +361,7 @@ const Engine = (() => {
     }
     if (needsGrade(s)) grade(ctx, w, h, s, rng);
     if (s.lut) lutPass(ctx, w, h, s.lut); // after the grade, before the leak (ADR 0006)
+    if (s.halation > 0) halation(ctx, w, h, s.halation, s.highlight); // PS-52, after the colour, before the optics
     if (s.leak > 0) lightLeak(ctx, w, h, s.leak, rng);
     if (s.vignette > 0) vignette(ctx, w, h, s.vignette);
     if (s.date && meta.date) dateStamp(ctx, w, h, meta.date, s.dateFmt);
@@ -416,8 +499,9 @@ const Engine = (() => {
     g.addColorStop(1, 'rgba(190,178,155,0.2)');
     x.fillStyle = g;
     x.fillRect(0, 0, W, H);
-    // The instant paper's texture: seeded, so the print is reproducible too.
-    grain(x, W, H, 10, 1.2, seeded(hash('instant paper')));
+    // The instant paper's texture: seeded, uniform, so the print is
+    // reproducible and the paper grain is not an emulsion (PS-52).
+    grain(x, W, H, 10, 1.2, seeded(hash('instant paper')), true);
     x.drawImage(f, side, top);
     x.save();
     x.beginPath();

@@ -14,18 +14,26 @@ export function quoted(text) {
 // for folder picks, busy makes a larger, high-detail (incompressible) 256x192
 // shot, garbage swaps the bytes for undecodable noise that still carries a
 // .jpg name, asym makes a 160x80 shot with red on the left and blue on the
-// right, and tone makes a 120x80 shot filled with the given colour, for the
-// rotation, crop and half-frame scenarios to sample.
+// right, tone makes a 120x80 shot filled with the given colour, and disk makes
+// a 160x120 near-black shot with a white disk centred at 40% of the width, for
+// the halation probes to sample around.
 export async function loadRoll(page, specs, rollName) {
   await openApp(page);
   return page.evaluate(async ({ specs, rollName }) => {
-    const makeJpeg = async (busy, garbage, asym, tone) => {
+    const makeJpeg = async (busy, garbage, asym, tone, disk) => {
       if (garbage) return crypto.getRandomValues(new Uint8Array(200));
       const c = document.createElement('canvas');
-      c.width = busy ? 256 : asym ? 160 : tone ? 120 : 64;
-      c.height = busy ? 192 : asym || tone ? 80 : 48;
+      c.width = busy ? 256 : asym ? 160 : tone ? 120 : disk ? 160 : 64;
+      c.height = busy ? 192 : asym ? 80 : tone ? 80 : disk ? 120 : 48;
       const x = c.getContext('2d');
-      if (tone) {
+      if (disk) {
+        x.fillStyle = '#0d0d0d';
+        x.fillRect(0, 0, c.width, c.height);
+        x.fillStyle = '#ffffff';
+        x.beginPath();
+        x.arc(c.width * 0.4, c.height * 0.5, 36, 0, Math.PI * 2);
+        x.fill();
+      } else if (tone) {
         x.fillStyle = tone;
         x.fillRect(0, 0, c.width, c.height);
       } else if (asym) {
@@ -53,7 +61,7 @@ export async function loadRoll(page, specs, rollName) {
     };
     const files = [];
     for (const s of specs) {
-      const f = new File([await makeJpeg(!!s.busy, !!s.garbage, !!s.asym, s.tone)], s.name, { type: 'image/jpeg' });
+      const f = new File([await makeJpeg(!!s.busy, !!s.garbage, !!s.asym, s.tone, !!s.disk)], s.name, { type: 'image/jpeg' });
       if (s.rel) Object.defineProperty(f, 'webkitRelativePath', { value: s.rel });
       files.push(f);
     }
