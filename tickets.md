@@ -144,6 +144,13 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 | PS-58 | The update swap runs on a private origin | Done | features/ | Commit `0f83ad2`. Third CI occurrence of the swap stick, mechanism proven: fullyParallel false serializes within a file, but 29 spec files run in parallel across workers sharing the 5179 origin (one registration, one sw.js). The swap scenarios now own a random-port server serving a web-dist COPY: isolated registration, bytes, caches. 179/179, CI green with parallel workers. |
 | PS-59 | The shell is atomic | Done | `sw.js`, features/ | Commit `175138f`. Owner-reported rotation death + empty rotate select + the swap sticks share one root: network-first navigations paired a fresh index.html with cache-first old parts (mixed shell). Red scenario: a post-deploy reload carried the new page body under the old controller. Navigations now serve the cached page of the running version with a quiet throttled update check; updates arrive whole through the toast. 180/180. Tag v1.4.4. |
 
+## v1.5: per-shot edits (planned 2026-11-27, owner-approved Q10/Q11)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-60 | The per-shot look model | Done | `engine.js` call sites, `app.js`, `web-api.js`, features/ | Commit `ded46cc`. Red proof: 4 failed pre-impl (rotate/slider/batch/relink all global). Full-copy sparse perPhoto looks; lookOf(p) resolver feeds every render path; state.stock stays the roll base identity; state.custom computed per shot. Re-pinned steps (shape/film/lut/rotation/sprocket) each justified. Bugs caught by its own reds: numeric-name sort order and placeholder panelSeed swallowing. 184/184 at commit. |
+| PS-61 | Per-shot editing UX + apply-film-to-all | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `9a8a890`. Red proof: 4 failed pre-impl (stale panel, no apply-all button, reset dead, no placeholder toast). Panel follows the selected shot; APPLY TO ALL in the film-stock head (the film-tools row's touch-area pseudo-elements collided across the wrap); per-shot reset clears the override; remembered shots refuse with the placeholder toast. activeStockId fallback for no-editable-shot surfaces. 188/188 final. |
+
 ## v1.4: the emulsion wave (2026-11-27)
 
 | ID | Title | Status | Scope | Evidence |
