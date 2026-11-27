@@ -383,9 +383,25 @@ body.dragging .drop-hint { display: flex; }
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap; /* the mode buttons may drop to a controlled second row on phones */
   padding: 10px 16px;
   border-top: 1px solid var(--line);
   background: var(--panel);
+}
+/* The navigation row never wraps: prev, the frame info and next stay inline
+   at every width, whatever the mode buttons do beside or under them (PS-55). */
+.stage-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.stage-nav .frame-info { min-width: 120px; }
+.stage-modes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .frame-info {
   flex: 1;
@@ -659,7 +675,16 @@ select:disabled { opacity: 0.4; }
   padding: 6px 8px;
 }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-#filmQr { display: block; margin: 10px auto 4px; image-rendering: pixelated; border: 6px solid #fff; border-radius: 4px; max-width: 100%; }
+/* The share row: the QR and the copy link sit side by side, so the dialog
+   reads the same on a phone as on the desktop (PS-55). */
+.share-actions { justify-content: space-between; align-items: center; gap: 12px; }
+#filmQr { display: block; margin: 0; image-rendering: pixelated; border: 6px solid #fff; border-radius: 4px; max-width: calc(100% - 110px); height: auto; min-width: 0; }
+.first-hint {
+  margin: 14px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+}
 .dlg-note { margin: 6px 0 0; font-size: 11px; color: var(--dim); text-align: center; }
 
 /* ---------- web build ---------- */

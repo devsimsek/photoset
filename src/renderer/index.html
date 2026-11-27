@@ -55,6 +55,7 @@
         <p>Pick a folder of .jpg photos, or drop it onto this window.<br>Your originals are never touched. Developed copies go into a subfolder.</p>
         <p class="web-only privacy">Everything runs in your browser. Your photos are never uploaded.</p>
         <button class="btn big primary" id="emptyLoad">CHOOSE FOLDER</button>
+        <p class="first-hint" id="firstHint" hidden>Load a folder of JPGs - everything stays on your device</p>
       </div>
       <div class="remember" id="rememberBanner" hidden>
         <h1>ROLL REMEMBERED</h1>
@@ -66,13 +67,17 @@
       <div class="spinner" id="spinner"></div>
     </div>
     <div class="stage-bar">
-      <button class="icon-btn" id="prevBtn" title="Previous (←)">◀</button>
-      <div class="frame-info" id="frameInfo">-</div>
-      <button class="icon-btn" id="nextBtn" title="Next (→)">▶</button>
-      <button class="btn ghost" id="compareBtn" title="Hold to see the original">HOLD · ORIGINAL</button>
-      <button class="btn ghost" id="cropBtn" title="Crop this shot by dragging on the preview">CROP</button>
-      <button class="btn ghost" id="cropReset" hidden title="Clear this shot's crop">RESET CROP</button>
-      <button class="btn ghost" id="cropDone" hidden title="Leave crop mode">DONE</button>
+      <div class="stage-nav">
+        <button class="icon-btn" id="prevBtn" title="Previous (←)">◀</button>
+        <div class="frame-info" id="frameInfo">-</div>
+        <button class="icon-btn" id="nextBtn" title="Next (→)">▶</button>
+      </div>
+      <div class="stage-modes">
+        <button class="btn ghost" id="compareBtn" title="Hold to see the original">HOLD · ORIGINAL</button>
+        <button class="btn ghost" id="cropBtn" title="Crop this shot by dragging on the preview">CROP</button>
+        <button class="btn ghost" id="cropReset" hidden title="Clear this shot's crop">RESET CROP</button>
+        <button class="btn ghost" id="cropDone" hidden title="Leave crop mode">DONE</button>
+      </div>
     </div>
   </section>
 
@@ -225,9 +230,9 @@
   </div>
   <div id="filmShareFields" hidden>
     <div class="dlg-actions share-actions">
+      <canvas id="filmQr" hidden></canvas>
       <button class="btn ghost" id="copyLinkBtn" type="button">COPY LINK</button>
     </div>
-    <canvas id="filmQr" hidden></canvas>
     <p class="dlg-note">Long-press or right-click the QR to save it as an image.</p>
   </div>
   <div class="dlg-actions">

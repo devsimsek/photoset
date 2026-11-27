@@ -668,6 +668,20 @@
       : 'Originals stay untouched';
   }
 
+  // ---------- first-run hint (PS-55) ----------
+  // Shown on a clean storage only; the first roll load retires it for good.
+  const HINT_KEY = 'darkroom.hinted';
+  function updateFirstHint() {
+    let hinted = null;
+    try { hinted = localStorage.getItem(HINT_KEY); } catch { /* storage blocked */ }
+    $('#firstHint').hidden = !!state.roll || !!hinted;
+  }
+
+  function retireFirstHint() {
+    try { localStorage.setItem(HINT_KEY, '1'); } catch { /* best effort */ }
+    $('#firstHint').hidden = true;
+  }
+
   // ---------- roll ----------
   async function pickFolder() {
     if (state.busy) return;
@@ -723,6 +737,7 @@
     }
     state.lastOut = null;
     $('#rememberBanner').hidden = true;
+    retireFirstHint(); // any roll load retires the first-run hint for good
     persistRoll();
     buildRollList();
     updateHeader();
@@ -1544,6 +1559,7 @@
   syncControls();
   bootFilmHash(); // a shared film link wins before anything else runs
   showRememberedRoll();
+  updateFirstHint();
 
   $('#loadBtn').onclick = pickFolder;
   $('#emptyLoad').onclick = pickFolder;
