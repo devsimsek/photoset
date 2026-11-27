@@ -136,6 +136,13 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 | PS-50 | The crop control explains itself | Done | `app.js`, features/ | Commit `e5df9db`. Dead click on no-selection / remembered placeholder now toasts the reason; pinned against a seeded remembered roll. CSP console note resolved as not-ours: the page ships zero inline scripts; the blocked inline script is a browser extension hitting our strict CSP. |
 | PS-51 | The version-swap check waits for the swap | Done | features/steps/pwa.js | Commit `548fe40`. Second CI occurrence of the recorded flake (controller still old after reload click); root cause read from the step: five zero-delay retries raced the navigation. Now 20 polls x 500ms settling. Tag v1.3.2; the recording-the-fix-shape-instead-of-fixing era ends here. |
 
+## v1.4.2/v1.4.3: the swatch revert and the hermetic swap (2026-11-27)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-57 | The stocks list keeps its colour swatches | Done | `app.js`, `styles.css`, `docs/user-guide.md`, features/ | Commit `6e74758`. Owner decision after v1.4: the PS-54 photo thumbnails go, the button is the film's identity. Preview engine removed (163 lines); scenarios pin zero canvases with a 2s settle so they cannot pass by checking before the old paint window. 179/179. |
+| PS-58 | The update swap runs on a private origin | Done | features/ | Commit `0f83ad2`. Third CI occurrence of the swap stick, mechanism proven: fullyParallel false serializes within a file, but 29 spec files run in parallel across workers sharing the 5179 origin (one registration, one sw.js). The swap scenarios now own a random-port server serving a web-dist COPY: isolated registration, bytes, caches. 179/179, CI green with parallel workers. |
+
 ## v1.4: the emulsion wave (2026-11-27)
 
 | ID | Title | Status | Scope | Evidence |
