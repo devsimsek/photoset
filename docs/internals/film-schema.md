@@ -66,6 +66,7 @@ a value outside the range, or a non-number, refuses with the range spelled out.
 | `aspect` | A key of the engine's `ASPECTS` map: `orig`, `3:2`, `4:3`, `5:4`, `1:1`, `16:9`, `cine`, `instant`. (`sprocket` also validates; it applies automatically in sprocket frame mode and the Crop select never offers it.) | `unknown aspect "2:1"` |
 | `frame` | `none`, `35mm`, `super8`, `instant`, `halfframe` or `sprocket`. | `unknown frame "polaroid"` |
 | `rotate` | OPTIONAL, added after v1 shipped: `0` (default), `90`, `180` or `270`. Films written before the key existed import unchanged; when present, the value must be one of the four or the import refuses. | `unknown rotate "45"` |
+| `halation` | OPTIONAL, added with the emulsion engine (PS-52): integer 0-100, default 0. Content-aware red-orange glow around bright highlights; validated only when present. | `halation 200 is out of range (0 to 100)` |
 | `date` | Boolean: the date stamp on or off. | `date must be on or off` |
 | `dateFmt` | `ymd`, `mdy` or `dmy`. | `unknown date format "dmy2"` |
 

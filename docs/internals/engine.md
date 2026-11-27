@@ -59,4 +59,6 @@ The random choices (leak position, colour, count; flicker amount; grain) come fr
 seeded generator keyed by the file name: `hash` is FNV-1a over the name, `seeded`
 is a mulberry32-style PRNG. The same file name produces the same leak, flicker, and
 grain on every develop, so re-developing a roll gives stable results and tests
-can pin exact output byte for byte, every slider included.
+can pin exact output byte for byte, every slider included. Halation sits after
+the grade/LUT and before the light leak (PS-52); the paper grain of the instant
+frame is seeded with a constant, so even instant prints reproduce.
