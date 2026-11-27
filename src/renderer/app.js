@@ -41,7 +41,7 @@
     // The house pack (PS-53): classic simulation spirits under house names,
     // tuned on the film-shaped engine. Cine Flat carries the halation key.
     { id: 'chrome', name: 'Chrome\n100', iso: '100', c1: '#2e6f9e', c2: '#f4f0e6', ink: '#f4efe3',
-      look: { contrast: 26, saturation: 0, warmth: -2, grain: 10, grainSize: 1.2, softness: 3 } },
+      look: { contrast: 28, saturation: 0, warmth: -2, grain: 10, grainSize: 1.2, softness: 3 } },
     { id: 'silk', name: 'Portrait\nSilk', iso: '100', c1: '#e0a48c', c2: '#f4e3d0',
       look: { contrast: -14, saturation: -10, warmth: 4, fade: 12, grain: 8, grainSize: 1.4, vignette: 12, softness: 12 } },
     { id: 'velvet', name: 'Velvet\nChrome 50', iso: '50', c1: '#1e6f4a', c2: '#c2381b', ink: '#f4efe3',

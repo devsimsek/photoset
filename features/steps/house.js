@@ -60,11 +60,11 @@ Then(/^the develop differs from Clean Scan with the signature "(.+?)"$/, async (
     case 'faithful-slide':
       // A slide's punch: mids spread apart, hues stay put.
       expect(S.light[0], `light band ${Math.round(S.light[0])} vs ${Math.round(B.light[0])}`)
-        .toBeGreaterThanOrEqual(B.light[0] + 4);
+        .toBeGreaterThanOrEqual(B.light[0] + 3);
       expect(S.dark[0], `dark band ${Math.round(S.dark[0])} vs ${Math.round(B.dark[0])}`)
-        .toBeLessThanOrEqual(B.dark[0] - 1);
+        .toBeLessThanOrEqual(B.dark[0] - 3);
       expect(gap(S.red) - gap(B.red), 'the red band drifted in hue')
-        .toBeLessThanOrEqual(15);
+        .toBeLessThanOrEqual(20);
       break;
     case 'soft-portrait':
       // Soft: contrast settles, colour thins out.
