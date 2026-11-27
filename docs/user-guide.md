@@ -55,6 +55,12 @@ stock, and Micro Mono 100 the fine-grain mono whose response leans the way a
 red filter does. Cine Flat 400 carries halation, so its highlights bloom
 red-orange; films saved from it keep the `halation` key.
 
+Every stock button also previews itself: with a shot loaded, the button shows
+the current shot developed through that stock, at thumbnail size, rebuilt as
+you move between shots and cleared when the roll changes. The thumbnails build
+off the click path, so picking a stock never waits on them. With no shot
+loaded the buttons keep their two-colour swatches.
+
 Touch any slider and the stock reads as *custom*. Double-click a slider label to reset
 that control to the stock's value.
 
