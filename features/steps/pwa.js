@@ -206,14 +206,18 @@ Then('the page boots again controlled by the new service worker version', async 
   }, { timeout: 10000 });
   // The running controller answers STATS with its VERSION constant; only the
   // newly deployed bytes report the update-test version. The click triggers a
-  // page reload, so the check retries across the navigation instead of racing
-  // it (this flaked once on CI's two workers).
+  // page reload plus SKIP_WAITING/claim, so the check polls with real settling
+  // time between attempts: five zero-delay retries raced the navigation and
+  // gave up mid-swap once on CI (this flake repeated; the wait is the fix).
   let version = null;
-  for (let i = 0; i < 5 && version !== 'update-test-v2'; i++) {
+  for (let i = 0; i < 20 && version !== 'update-test-v2'; i++) {
     try {
       version = await swPageStatsVersion(page);
     } catch (e) {
       if (!/Execution context was destroyed|Target closed/i.test(String(e?.message ?? e))) throw e;
+    }
+    if (version !== 'update-test-v2') {
+      await page.waitForTimeout(500);
       await page.waitForFunction(() => !!(window.api && window.__darkroom), { timeout: 10000 }).catch(() => {});
     }
   }
