@@ -86,10 +86,23 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Navigations are network-first so a deployed update arrives on reload.
+  // Navigations serve the CACHED page of the running version: an atomic
+  // shell. Network-first here mixed a fresh index.html with old cached parts
+  // after a deploy (new page + old app.js: the mixed shell that rendered an
+  // empty rotate select on the owner's Safari). A quiet update check rides
+  // along, so the update toast still offers the atomic swap.
   if (e.request.mode === 'navigate') {
     handled++;
     e.respondWith((async () => {
+      const cached = await caches.match('index.html');
+      if (cached) {
+        const now = Date.now();
+        if (now - (self.__lastUpdateCheck || 0) > 30000) {
+          self.__lastUpdateCheck = now;
+          self.registration.update().catch(() => {});
+        }
+        return cached;
+      }
       try {
         const fresh = await fetch(e.request);
         // Only a real shell page enters the precache: a 404 body never replaces index.html.
@@ -99,8 +112,6 @@ self.addEventListener('fetch', (e) => {
         }
         return fresh;
       } catch {
-        const cached = await caches.match('index.html');
-        if (cached) return cached;
         throw new Error('offline and no cached shell page');
       }
     })());

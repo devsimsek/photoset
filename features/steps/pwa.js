@@ -226,6 +226,42 @@ When('a new service worker version is waiting', async () => {
   await sw.page.waitForFunction(() => !!(window.api && window.__darkroom));
 });
 
+// ---------- atomic shell (PS-59) ----------
+// A deploy must never hand the browser a new index.html with old cached
+// parts: the mixed shell is how a stale app.js rendered an empty rotate
+// select on the owner's Safari. The navigation therefore serves the CACHED
+// page of the running version; new bytes arrive only through the update
+// toast's atomic swap.
+
+When('a new version is deployed with a marker in its page', async () => {
+  const swPath = path.join(privateSrv.root, 'index.html');
+  let html = fs.readFileSync(swPath, 'utf8');
+  html = html.replace('</body>', '<div id="v2marker">MIXED SHELL MARKER</div></body>');
+  fs.writeFileSync(swPath, html);
+  await swDeployV2(); // the new build's sw + page deploy together
+  await sw.page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
+  await sw.page.waitForFunction(() => navigator.serviceWorker.getRegistration().then((r) => !!r && !!r.waiting), { timeout: 10000 });
+});
+
+When('the page is reloaded without accepting the update', async () => {
+  await sw.page.reload();
+  await sw.page.waitForFunction(() => !!(window.api && window.__darkroom));
+});
+
+Then('the shell stays consistent: the marker is not in the page', async () => {
+  const marker = await sw.page.evaluate(() => document.querySelector('#v2marker')?.textContent || null);
+  if (marker) throw new Error('the fresh page body was served with the old cached parts: mixed shell');
+});
+
+Then('the old cached page is served until the user accepts the update', async () => {
+  const reg = await sw.page.evaluate(async () => {
+    const r = await navigator.serviceWorker.getRegistration();
+    return { waiting: !!r?.waiting, controller: !!navigator.serviceWorker.controller };
+  });
+  if (!reg.waiting) throw new Error('no waiting worker: the deploy did not stage an update');
+  if (!reg.controller) throw new Error('no controller: the page is running raw network bytes');
+});
+
 Then('the update toast offers a reload', async () => {
   const page = sw.page;
   await page.waitForFunction(() => document.querySelector('#toast')?.classList.contains('on') || undefined, { timeout: 5000 });

@@ -34,6 +34,13 @@ Feature: PWA shell
     When a new service worker version is waiting
     Then the page does not reload on its own
 
+  Scenario: A deploy never serves a new page with old parts
+    Given the app runs on a private origin with a service worker precaching the shell
+    When a new version is deployed with a marker in its page
+    And the page is reloaded without accepting the update
+    Then the shell stays consistent: the marker is not in the page
+    And the old cached page is served until the user accepts the update
+
   Scenario: The manifest is fetchable and parses
     Given the darkroom is open
     Then the manifest at the app root parses with name "Photoset Darkroom" and display "standalone"
