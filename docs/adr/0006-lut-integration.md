@@ -1,6 +1,6 @@
 # ADR 0006: .cube LUT integration
 
-Date: 2026-11-27 · Status: Proposed (PS-44; ratified when PS-45/46 land)
+Date: 2026-11-27 · Status: Accepted (PS-45/PS-46 landed, 152 scenarios green)
 
 ## Context
 

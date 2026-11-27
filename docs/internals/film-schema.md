@@ -1,15 +1,19 @@
-# Film schema v1
+# Film schema (v1 and v2)
 
 A film is one JSON object. It describes a complete look, travels as a file or a
 pasted text, and imports only when it validates. The app refuses anything else
 with a specific message and leaves the current look untouched.
 
+Schema 1 is the original contract; schema 2 adds an optional root-level `lut`
+object (ADR 0006). Schema 1 films import forever unchanged.
+
 ```json
 {
-  "schema": 1,
+  "schema": 2,
   "id": "koda-64",
   "name": "KODA 64",
   "iso": "64",
+  "lut": { "name": "KODA 64 bake", "size": 33, "table": "..." },
   "look": {
     "exposure": 0, "contrast": 0, "saturation": 0, "warmth": 0, "tint": 0,
     "fade": 0, "split": 0, "shadow": "#2f6a72", "highlight": "#ffb46a",
@@ -24,11 +28,12 @@ with a specific message and leaves the current look untouched.
 
 | Field | Rule | Refusal message |
 | --- | --- | --- |
-| `schema` | Must be exactly `1`. Anything else, including a missing or string value, refuses. | `unknown film schema version 2 (expected 1)` |
+| `schema` | `1` or `2`. Anything else, including a missing or string value, refuses. | `unknown film schema version 3 (expected 1 or 2)` |
 | `id` | Non-empty string. Stable across saves: renaming a film keeps its id. | `film id is missing` |
 | `name` | Non-empty string, display text. | `film name is missing` |
 | `iso` | String, display text. | `film iso must be text` |
 | `look` | Object with the look keys below. The original nineteen are required; `rotate` is optional with default `0` (v1 films import forever, PS-39). | `film look is missing` |
+| `lut` | OPTIONAL, schema 2 only: `{ name, size, table }` (PS-47). `name` display text; `size` integer 17..65 inclusive; `table` base64 of exactly `size³ × 3` bytes, 8-bit outputs in red-fastest order. A schema-2 film without `lut` is legal. QR, paste, and link sharing of a LUT film refuse by law: LUT films share as downloaded files only. | `LUT size out of range (17 to 65)` |
 
 Unknown extra keys on the root object are ignored, so schema v1 can grow
 without breaking older films.
