@@ -34,6 +34,9 @@ function cubeText(kind, title) {
     const per = kind === 'blue lift' ? (r, g, b) => [r, g, Math.min(1, b + 0.25)] : (r, g, b) => [r, g, b];
     L.push(...cubeRows(17, per));
     if (kind === 'log-domain') L.splice(1, 1, 'DOMAIN_MIN 0.1 0.0 0.0');
+  } else if (kind === 'identity-33') {
+    L.push('TITLE "Identity 33"', 'LUT_3D_SIZE 33');
+    L.push(...cubeRows(33, (r, g, b) => [r, g, b]));
   } else if (kind === '1d') {
     L.push('LUT_1D_SIZE 32');
     L.push(...cubeRows(1, (r, g, b) => [r, g, b]).slice(0, 0)); // no 3D rows
@@ -91,6 +94,117 @@ Then(/^the import refuses naming the non-finite value$/, async ({ page }) => {
     () => page.evaluate(() => document.querySelector('#toastMsg').textContent),
     { timeout: 5000, message: 'no refusal toast naming the non-finite value appeared' },
   ).toMatch(/non-finite/);
+});
+
+// ---------- export bake fixtures (PS-46) ----------
+
+// A busy shot: high-detail incompressible pixels, so the fidelity compare
+// exercises thousands of distinct input values, not one flat colour.
+Given('the photographer loaded a busy shot', async ({ page }) => {
+  await loadRoll(page, [{ name: 'busy.jpg', busy: true }], '');
+});
+
+Given(/^the photographer imported a grade-only film with warmth (\d+) and tint (-?\d+) as "(.+?)"$/,
+  async ({ page }, warmth, tint, name) => {
+    const film = {
+      schema: 1, id: slug(name), name, iso: '64',
+      look: { ...neutralLook(), warmth: Number(warmth), tint: Number(tint) },
+    };
+    await page.click('#importFilmBtn');
+    await page.fill('#filmJson', JSON.stringify(film));
+    await page.click('#filmOk');
+  });
+
+Given(/^the photographer imported a grade-only film with saturation (-?\d+), warmth (\d+), tint (-?\d+), fade (\d+) and split (\d+) as "(.+?)"$/,
+  async ({ page }, saturation, warmth, tint, fade, split, name) => {
+    const film = {
+      schema: 1, id: slug(name), name, iso: '64',
+      look: { ...neutralLook(), saturation: Number(saturation), warmth: Number(warmth), tint: Number(tint), fade: Number(fade), split: Number(split) },
+    };
+    await page.click('#importFilmBtn');
+    await page.fill('#filmJson', JSON.stringify(film));
+    await page.click('#filmOk');
+  });
+
+Given(/^the photographer imported a film with exposure (-?\d+) and a (\d+)-point blue-lift LUT named "(.+?)" as a file$/,
+  async ({ page }, exposure, size, name) => {
+    const table = tintTableB64(Number(size), (r, g, b) => [r, g, Math.min(1, b + 0.25)]);
+    const film = { ...lutFilm(name, Number(size), table), look: { ...neutralLook(), exposure: Number(exposure) } };
+    await importFilmJson(page, film);
+  });
+
+When('the photographer exports the film as a cube', async ({ page }) => {
+  const dl = page.waitForEvent('download');
+  await page.click('#exportCubeBtn');
+  results.film.cubeDownload = await dl;
+});
+
+When('the photographer imports the exported cube file', async ({ page }) => {
+  await page.click('#importFilmBtn');
+  await page.setInputFiles('#filmFile', await results.film.cubeDownload.path());
+  await page.click('#filmOk');
+});
+
+// PNG output decodes losslessly, so a full-image channel compare is exact.
+async function decodeResultPixels(page) {
+  const bytes = readFileSync(await results.downloads[0].path());
+  return page.evaluate(async (buf) => {
+    const bmp = await createImageBitmap(new Blob([buf], { type: 'image/png' }));
+    const c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height;
+    const x = c.getContext('2d');
+    x.drawImage(bmp, 0, 0);
+    bmp.close();
+    return { w: c.width, h: c.height, data: x.getImageData(0, 0, c.width, c.height).data };
+  }, new Uint8Array(bytes));
+}
+
+Then('the developed pixels are remembered', async ({ page }) => {
+  results.film.pixels = await decodeResultPixels(page);
+});
+
+Then(/^the developed pixels stay within (\d+)\/255 of the remembered develop$/, async ({ page }, tol) => {
+  const now = await decodeResultPixels(page);
+  const was = results.film.pixels;
+  expect(was, 'no remembered pixels').toBeTruthy();
+  expect(now.w).toBe(was.w);
+  expect(now.h).toBe(was.h);
+  let worst = 0;
+  const a = was.data, b = now.data;
+  for (let i = 0; i < a.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const d = Math.abs(a[i + c] - b[i + c]);
+      if (d > worst) worst = d;
+    }
+  }
+  results.film.worstDelta = worst;
+  expect(worst, `worst channel delta ${worst}/255`).toBeLessThanOrEqual(Number(tol));
+});
+
+Then(/^the cube text names "(.+?)" and declares the 0 to 1 domain$/, async ({}, name) => {
+  const text = readFileSync(await results.film.cubeDownload.path(), 'utf8');
+  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  results.film.cubeRows = lines;
+  expect(lines[0]).toBe(`TITLE "${name}"`);
+  expect(lines.filter((l) => /^DOMAIN_MIN /.test(l)).length).toBe(1);
+  expect(lines.filter((l) => /^DOMAIN_MAX /.test(l)).length).toBe(1);
+  expect(lines.find((l) => /^DOMAIN_MIN /.test(l))).toBe('DOMAIN_MIN 0.0 0.0 0.0');
+  expect(lines.find((l) => /^DOMAIN_MAX /.test(l))).toBe('DOMAIN_MAX 1.0 1.0 1.0');
+});
+
+Then(/^the cube carries (\d+) rows with red changing on every row$/, async ({}, want) => {
+  const lines = results.film.cubeRows;
+  expect(lines.find((l) => /^LUT_3D_SIZE /.test(l))).toBe('LUT_3D_SIZE 33');
+  const rows = lines.filter((l) => /^[0-9.-]/.test(l));
+  expect(rows.length).toBe(Number(want));
+  // Red-fastest: inside the first green/blue plane the red component of the
+  // row value changes on every row.
+  let prev = -1;
+  for (let i = 0; i < 32; i++) {
+    const v = Number(rows[i].split(/\s+/)[0]);
+    expect(v, `row ${i + 1} red component`).toBeGreaterThan(prev);
+    prev = v;
+  }
 });
 
 // ---------- engine-pass fixtures ----------

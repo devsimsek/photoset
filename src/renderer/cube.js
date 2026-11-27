@@ -69,11 +69,7 @@ const Cube = (() => {
       }
     }
     // Rows arrive in red-fastest order, which is the film table's order too.
-    let b64 = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      b64 += btoa(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)));
-    }
-    return { title, size, table: b64 };
+    return { title, size, table: encode(bytes) };
   }
 
   /** base64 of 8-bit table bytes -> Uint8Array. */
@@ -83,11 +79,12 @@ const Cube = (() => {
     return out;
   }
 
-  /** Uint8Array -> base64 (chunked so apply() stays in range). */
+  /** Uint8Array -> base64 (chunked so apply() stays in range; the chunk is a
+      multiple of 3, so '=' padding never lands inside the string). */
   function encode(bytes) {
     let b64 = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      b64 += btoa(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)));
+    for (let i = 0; i < bytes.length; i += 32766) {
+      b64 += btoa(String.fromCharCode.apply(null, bytes.subarray(i, i + 32766)));
     }
     return b64;
   }

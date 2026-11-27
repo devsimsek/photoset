@@ -30,6 +30,10 @@ Feature: .cube files import as films
     When the photographer imports the generated "identity" cube titled "Studio Tint"
     Then the stocks list shows "Studio Tint" as a custom film
 
+  Scenario: A 33-point cube imports with a full-size table
+    When the photographer imports the generated "identity-33" cube
+    Then the stocks list shows "Identity 33" as a custom film
+
   Scenario: A 1D cube file refuses
     When the photographer imports the generated "1d" cube
     Then the import refuses naming the 1D cut

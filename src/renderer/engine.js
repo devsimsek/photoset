@@ -62,10 +62,11 @@ const Engine = (() => {
     return s.exposure || s.contrast || s.saturation || s.warmth || s.tint || s.fade || s.split || s.flicker;
   }
 
-  function grade(ctx, w, h, s, rng) {
-    const img = ctx.getImageData(0, 0, w, h), d = img.data;
-    const flick = s.flicker ? (rng() - 0.5) * (s.flicker / 100) * 0.6 : 0;
-    const ev = Math.pow(2, s.exposure / 100 + flick);
+  // The 256-entry per-channel curve: exposure (f-stop style, 2^(exposure/100),
+  // plus flicker), contrast, fade, warmth/tint gains. Exported so the .cube
+  // bake evaluates the exact same table (PS-46).
+  function curveLUT(s, flick) {
+    const ev = Math.pow(2, s.exposure / 100 + (flick || 0));
     const c = 1 + (s.contrast / 100) * 0.9;
     const fade = (s.fade / 100) * 0.32;
     const gains = [1 + (s.warmth / 100) * 0.15, 1 - (s.tint / 100) * 0.1, 1 - (s.warmth / 100) * 0.15];
@@ -80,10 +81,24 @@ const Engine = (() => {
         lut[ch][i] = v * 255;
       }
     }
+    return lut;
+  }
+
+  // The curve at a fractional 0..255 input: linear interpolation between the
+  // neighbouring table entries (the per-pixel loop indexes with integers).
+  function curveAt(tbl, v) {
+    const i = Math.min(Math.floor(v), 255);
+    const f = v - i;
+    return f ? tbl[i] + (tbl[i + 1 < 256 ? i + 1 : 255] - tbl[i]) * f : tbl[i];
+  }
+
+  function grade(ctx, w, h, s, rng) {
+    const img = ctx.getImageData(0, 0, w, h), d = img.data;
+    const flick = s.flicker ? (rng() - 0.5) * (s.flicker / 100) * 0.6 : 0;
+    const [lr, lg, lb] = curveLUT(s, flick);
     const sat = 1 + s.saturation / 100;
     const st = (s.split / 100) * 0.7;
     const so = hueOffset(s.shadow, st), ho = hueOffset(s.highlight, st);
-    const lr = lut[0], lg = lut[1], lb = lut[2];
     for (let i = 0; i < d.length; i += 4) {
       let r = lr[d[i]], g = lg[d[i + 1]], b = lb[d[i + 2]];
       const l = 0.299 * r + 0.587 * g + 0.114 * b;
@@ -533,5 +548,5 @@ const Engine = (() => {
     return m && m.date;
   }
 
-  return { renderLook, applyFrame, composeStrip, composeHalfFrame, halfPrint, encode, exifDate, exifMeta, mk, ASPECTS };
+  return { renderLook, applyFrame, composeStrip, composeHalfFrame, halfPrint, encode, exifDate, exifMeta, mk, ASPECTS, curveLUT, curveAt, hueOffset };
 })();

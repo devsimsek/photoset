@@ -277,6 +277,75 @@
     applyFilm(film);
     return { film };
   }
+  // ---------- .cube export (PS-46) ----------
+  // The film's look baked into a 33-point .cube: the grade function G is
+  // evaluated at every lattice point in engine order (per-channel curve by
+  // linear interpolation at the fractional input, then saturation toward the
+  // curved luma, then split-tone with (1-t)^2 / t^2 weights, t = luma/255),
+  // quantised the way the engine's write-clamp would, and for a film that
+  // carries a LUT the film's own table is sampled at that byte with the same
+  // arithmetic the engine's lut pass uses, so the bake is grade-then-LUT in
+  // pipeline order. Flicker, leak, vignette, softness, grain and the frame
+  // are optical-stack steps a colour cube cannot carry, so they stay out.
+  const CUBE_N = 33;
+  function bakeCube(film) {
+    const look = film.look;
+    const curves = Engine.curveLUT(look, 0); // flicker is per-shot, never baked
+    const sat = 1 + look.saturation / 100;
+    const st = (look.split / 100) * 0.7;
+    const so = st ? Engine.hueOffset(look.shadow, st) : null;
+    const ho = st ? Engine.hueOffset(look.highlight, st) : null;
+    const lut = film.lut ? Cube.decode(film.lut.table) : null;
+    const NS = film.lut ? film.lut.size : 0;
+    const N1 = CUBE_N - 1;
+    const quantise = (v) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v)); // the 8-bit write-clamp
+    const bytes = new Uint8Array(CUBE_N * CUBE_N * CUBE_N * 3);
+    let k = 0;
+    for (let b = 0; b < CUBE_N; b++) {
+      for (let g = 0; g < CUBE_N; g++) {
+        for (let r = 0; r < CUBE_N; r++) {
+          let R = Engine.curveAt(curves[0], r * 255 / N1);
+          let G = Engine.curveAt(curves[1], g * 255 / N1);
+          let B = Engine.curveAt(curves[2], b * 255 / N1);
+          const l = 0.299 * R + 0.587 * G + 0.114 * B;
+          if (sat !== 1) { R = l + (R - l) * sat; G = l + (G - l) * sat; B = l + (B - l) * sat; }
+          if (st) {
+            const t = l / 255, ws = (1 - t) * (1 - t), wh = t * t;
+            R += so[0] * ws + ho[0] * wh; G += so[1] * ws + ho[1] * wh; B += so[2] * ws + ho[2] * wh;
+          }
+          R = quantise(R); G = quantise(G); B = quantise(B);
+          if (lut) {
+            // Mirrors the engine lutPass arithmetic exactly (red, then green,
+            // then blue) so the baked lattice point reproduces the pipeline.
+            const x = R * (NS - 1) / 255, y = G * (NS - 1) / 255, z = B * (NS - 1) / 255;
+            const r0 = Math.floor(x), g0 = Math.floor(y), b0 = Math.floor(z);
+            const rx = x - r0, gx = y - g0, bz = z - b0;
+            const r1 = r0 < NS - 1 ? r0 + 1 : NS - 1, g1 = g0 < NS - 1 ? g0 + 1 : NS - 1, b1 = b0 < NS - 1 ? b0 + 1 : NS - 1;
+            const o = ((b0 * NS + g0) * NS + r0) * 3;
+            const dr = (r1 - r0) * 3, dgy = (g1 - g0) * NS * 3, dbz = (b1 - b0) * NS * NS * 3;
+            const L = (a, f, c) => a + (c - a) * f;
+            const out = [R, G, B];
+            for (let ch = 0; ch < 3; ch++) {
+              const top = L(L(lut[o + ch], rx, lut[o + dr + ch]), gx, L(lut[o + dgy + ch], rx, lut[o + dgy + dr + ch]));
+              const bottom = L(L(lut[o + dbz + ch], rx, lut[o + dbz + dr + ch]), gx, L(lut[o + dbz + dgy + ch], rx, lut[o + dbz + dgy + dr + ch]));
+              out[ch] = quantise(L(top, bz, bottom));
+            }
+            R = out[0]; G = out[1]; B = out[2];
+          }
+          bytes[k++] = R; bytes[k++] = G; bytes[k++] = B;
+        }
+      }
+    }
+    // 6-decimal floats (OCIO bakes at the same precision), red fastest,
+    // explicit DOMAIN lines, TITLE from the film name.
+    const title = singleLine(film.name).replace(/"/g, "'");
+    const lines = [`TITLE "${title}"`, 'DOMAIN_MIN 0.0 0.0 0.0', 'DOMAIN_MAX 1.0 1.0 1.0', `LUT_3D_SIZE ${CUBE_N}`];
+    for (let i = 0; i < bytes.length; i += 3) {
+      lines.push(`${(bytes[i] / 255).toFixed(6)} ${(bytes[i + 1] / 255).toFixed(6)} ${(bytes[i + 2] / 255).toFixed(6)}`);
+    }
+    return lines.join('\n') + '\n';
+  }
+
   function saveFilm(name, iso) {
     const film = exportFilm();
     film.name = singleLine(name) || film.name;
@@ -1463,6 +1532,12 @@
       try { await navigator.clipboard.writeText(json); toast('Film JSON copied to clipboard'); }
       catch { toast('Clipboard refused; use the downloaded file'); }
     });
+  };
+  $('#exportCubeBtn').onclick = async () => {
+    const film = exportFilm();
+    const text = bakeCube(film);
+    try { await api.writeFile('films', `${film.id}.cube`, text, 'text/plain'); } catch (e) { toast('Could not export cube: ' + e.message); return; }
+    toast(`Cube exported as ${film.id}.cube`);
   };
   $('#importFilmBtn').onclick = () => openFilmDlg('import');
   $('#saveFilmBtn').onclick = () => openFilmDlg('save');

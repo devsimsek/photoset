@@ -78,6 +78,23 @@ A look can travel: export it as a film JSON file, import one back. Films follow
   naming the range, and a table of the wrong length refuses naming the exact
   expected size. A film without a `lut` imports as before, and v1 films
   import forever, unchanged.
+- **Export a .cube file.** The film tools gain *export .cube*: the film's
+  colour look baked into a 33-point .cube LUT that other hosts can load. A
+  film without a LUT bakes its full grade into the table (curve, saturation
+  and split tone in engine order); a film that carries a LUT bakes
+  grade-then-LUT in the same pipeline order. Grain, leak, vignette, softness,
+  flicker and the frame are optical-stack steps a colour cube cannot carry,
+  so they stay in the film JSON. The file carries the film name as its TITLE,
+  explicit 0 to 1 DOMAIN lines and N³ rows in red-fastest order at 6-decimal
+  precision.
+- **Export fidelity.** A baked cube is not byte-identical to the film: at the
+  lattice points it matches by construction, and in between trilinear
+  interpolation approximates the grade. Pinned in tests: a re-imported cube
+  develops within 2/255 of the original per channel for a plain grade, and
+  within 4/255 when the film also carries a LUT, because the film's own
+  8-bit table and the baked 8-bit table quantise twice. The same-file,
+  same-film byte-for-byte law is untouched; only the bake-to-approximation
+  path carries a tolerance.
 - **Import a .cube file.** The import dialog also takes `.cube` LUT files.
   Parsing happens on the device. A 3D table of 17 to 65 points imports as a
   film: the table becomes the film's LUT, the look sliders stay neutral, and
