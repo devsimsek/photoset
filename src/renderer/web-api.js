@@ -86,8 +86,10 @@
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = true;
-      input.accept = '.jpg,.jpeg,image/jpeg,.dng,.cr3,.arw';
       const folderMode = !matchMedia('(pointer: coarse)').matches; // phones: pick photos instead of a folder
+      input.accept = folderMode
+        ? '..' // WebKit bug 284457: Safari lets files be selected inside a folder and then returns an empty list; a filter no file matches keeps Safari's picker folder-only. Chrome ignores accept for directory picking.
+        : '.jpg,.jpeg,image/jpeg,.dng,.cr3,.arw';
       if (folderMode) input.webkitdirectory = true;
       input.onchange = () => resolve(input.files.length ? fromFiles([...input.files], folderMode ? '' : 'photos') : null);
       input.oncancel = () => resolve(null);
@@ -272,7 +274,11 @@
           return await fromDirHandle(await window.showDirectoryPicker({ id: 'photoset-roll', mode: 'readwrite' }));
         } catch (err) {
           if (err.name === 'AbortError') return null;
-          if (err.name !== 'SecurityError' && err.name !== 'TypeError') throw err; // e.g. inside an iframe → fall back
+          if (err.name !== 'SecurityError' && err.name !== 'TypeError') {
+            // Anything else the picker can throw still falls back to the
+            // folder input instead of dying on the primary path.
+            console.warn('showDirectoryPicker failed, falling back to the input picker', err);
+          }
         }
       }
       return pickWithInput();
