@@ -1097,7 +1097,12 @@
   }
   function setCropMode(on) {
     const p = state.photos[state.sel];
-    if (on && (!p || p.remembered || p.missing)) return;
+    if (on && (!p || p.remembered || p.missing)) {
+      toast(!p
+        ? 'Pick a shot to crop'
+        : 'This shot is a placeholder: re-pick the folder to crop it');
+      return;
+    }
     state.cropMode = on;
     $('#cropBtn').hidden = on;
     $('#cropReset').hidden = !on;
