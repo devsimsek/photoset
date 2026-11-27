@@ -72,6 +72,14 @@ one, and the roll's base look otherwise.
 - **A stock switch seeds one shot.** Choosing a stock or film applies it to
   the shot in view; shots without a look of their own keep developing with
   the roll's base look.
+- **APPLY TO ALL is the roll-wide act.** The control in the stocks header
+  copies the shot in view's look onto every shot and clears their overrides,
+  so the whole roll shares one base look again.
+- **The reset clears one shot.** *reset to stock* clears the shot in view's
+  own look; the shot falls back to the roll base.
+- **A placeholder takes no look.** On a remembered roll (or a shot the folder
+  lost) the panel shows the base look and every edit refuses with a toast
+  that asks for the folder.
 - **Overrides persist with the roll.** A shot's look rides in the roll
   metadata beside the crop rectangles, so a reload and a re-picked folder
   bring it back by name. Pixels never persist; a look is a few hundred bytes,

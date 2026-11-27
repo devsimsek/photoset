@@ -76,6 +76,21 @@ new. Every render honours it: a single develop, a batch, the film strips and
 the contact sheet all develop each shot with its own look, and on a strip
 each frame carries its own film's name on the edge print.
 
+**The panel follows the selection.** The sliders, the selects and the stock
+label always show the shot in view; walk the roll and the bench follows. A
+remembered roll (or a shot the folder lost) shows the base look and refuses
+edits with a toast that asks for the folder.
+
+**APPLY TO ALL is the roll-wide act.** The button next to the film stock name
+copies the shot in view's look onto every shot in the roll and clears their
+own looks, so the whole roll shares one base look again - the way the
+darkroom worked before per-shot looks. Crops survive it: they are per-shot
+framing, not looks. It sits out while no shot is in view.
+
+**Reset per shot.** *reset to stock* in the LOOK header clears the shot in
+view's own look, so it falls back to the roll base. With no roll loaded it
+re-seeds the base from the stock, as before.
+
 ## Film studio
 
 A look can travel: export it as a film JSON file, import one back. Films follow

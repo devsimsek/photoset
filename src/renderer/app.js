@@ -563,17 +563,60 @@
   // One look edit on the panel: it lands on the SELECTED shot's override,
   // seeded with the shot's full effective look. Without an editable shot the
   // edit seeds the roll base, as before. Returns false when the shot refuses
-  // the edit (a remembered or missing placeholder); PS-61 names that refusal.
+  // the edit: a remembered or missing placeholder refuses with a toast that
+  // says to re-pick the folder (PS-61).
   function editSelected(k, v) {
-    const p = panelShot();
+    const p = state.photos[state.sel];
     if (!p) { state.s[k] = v; state.custom = true; updateStockLabel(); return true; }
-    if (p.remembered || p.missing) return false;
+    if (p.remembered || p.missing) {
+      toast('This shot is a placeholder: re-pick the folder to edit it');
+      return false;
+    }
     const eff = lookOf(p);
     const look = {};
     for (const kk of LOOK_KEYS) look[kk] = eff[kk];
     look[k] = v;
     setOverride(p, { stock: stockOf(p), look });
     return true;
+  }
+  // APPLY TO ALL (PS-61), the roll-wide act: the shot in view's look becomes
+  // the roll base and every override clears, so the whole roll shares one
+  // base look again. Crops are per-shot data, not looks: they survive.
+  function applyToAll() {
+    const p = panelShot();
+    if (!p) {
+      toast(!state.photos.length
+        ? 'Load a roll first'
+        : 'This shot is a placeholder: re-pick the folder to edit it');
+      return;
+    }
+    const eff = lookOf(p), id = stockOf(p);
+    for (const k of LOOK_KEYS) state.s[k] = eff[k];
+    state.stock = id;
+    state.custom = lookDiffers(eff, stockById(id));
+    for (const o of Object.values(state.perPhoto)) { delete o.look; delete o.stock; }
+    for (const name of Object.keys(state.perPhoto)) {
+      if (!Object.keys(state.perPhoto[name]).length) delete state.perPhoto[name];
+    }
+    persist();
+    persistRoll();
+    syncControls();
+    schedulePreview();
+  }
+  // The reset control (PS-61): with a shot in view it clears that shot's look
+  // override, so the shot falls back to the roll base. With no shot it
+  // re-seeds the base from the stock, as before.
+  function resetSelected() {
+    const p = panelShot();
+    if (!p) { applyStock(state.stock); return; }
+    const o = state.perPhoto[p.name];
+    if (!o || (!o.look && !o.stock)) return;
+    delete o.look;
+    delete o.stock;
+    if (!Object.keys(o).length) delete state.perPhoto[p.name];
+    persistRoll();
+    syncControls();
+    schedulePreview();
   }
 
   const totalSize = () => state.photos.reduce((a, p) => a + p.size, 0);
@@ -648,11 +691,14 @@
   function applyStock(id) {
     const st = stockById(id);
     if (!st) return;
-    const p = panelShot();
+    const p = state.photos[state.sel];
+    if (p && (p.remembered || p.missing)) {
+      // PS-61: a placeholder takes no stock; the toast says to re-pick.
+      toast('This shot is a placeholder: re-pick the folder to edit it');
+      return;
+    }
     if (p) {
-      // PS-60: a stock switch seeds the SELECTED shot's look. A placeholder
-      // takes no stock (PS-61 names that refusal).
-      if (p.remembered || p.missing) return;
+      // PS-60: a stock switch seeds the SELECTED shot's look.
       setOverride(p, { stock: id, look: stockLook(st, lookOf(p)) });
       changed('look');
       return;
@@ -723,11 +769,8 @@
         changed(k);
       });
     });
-    $('#resetLook').onclick = () => {
-      const p = panelShot();
-      if (p) applyStock(stockOf(p)); // resets the shot to its own stock (PS-61 clears the override)
-      else applyStock(state.stock);
-    };
+    $('#resetLook').onclick = resetSelected;
+    $('#applyAllBtn').onclick = applyToAll;
   }
   function changed(k) {
     persist();
@@ -1172,6 +1215,8 @@
     if (p && !p.el) renderTiles(i + 1); // a keyboard walk can outrun the rendered window
     if (p.el) { p.el.classList.add('sel'); p.el.scrollIntoView({ block: 'nearest' }); }
     updateFrameInfo();
+    syncControls(); // PS-61: the panel follows the selected shot
+    updateApplyAll();
     schedulePreview();
   }
   function updateFrameInfo() {
@@ -1443,6 +1488,14 @@
       b.disabled = state.busy || !has;
       b.title = state.busy ? ACTION_TITLES[id] : has ? ACTION_TITLES[id] : 'Load a roll first';
     }
+    updateApplyAll();
+  }
+  // APPLY TO ALL (PS-61) sits out while there is no shot in view to apply.
+  function updateApplyAll() {
+    const b = $('#applyAllBtn');
+    const ok = !!panelShot() && !state.busy;
+    b.disabled = !ok;
+    b.title = ok ? 'Apply the look of the shot in view to every shot in the roll' : 'Load a roll and select a shot first';
   }
   function setBusy(on, label) {
     state.busy = on;
