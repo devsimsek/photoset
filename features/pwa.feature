@@ -19,18 +19,18 @@ Feature: PWA shell
     Then the service worker does not handle it
 
   Scenario: A waiting service worker shows the update toast
-    Given the app has a service worker precaching the shell
+    Given the app runs on a private origin with a service worker precaching the shell
     When a new service worker version is waiting
     Then the update toast offers a reload
 
   Scenario: Clicking reload swaps to the new version
-    Given the app has a service worker precaching the shell
+    Given the app runs on a private origin with a service worker precaching the shell
     When a new service worker version is waiting
     And the user clicks reload on the update toast
     Then the page boots again controlled by the new service worker version
 
   Scenario: Without a click, the page never reloads on its own
-    Given the app has a service worker precaching the shell
+    Given the app runs on a private origin with a service worker precaching the shell
     When a new service worker version is waiting
     Then the page does not reload on its own
 

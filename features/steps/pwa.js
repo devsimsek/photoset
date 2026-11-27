@@ -1,5 +1,7 @@
 import { createBdd } from 'playwright-bdd';
 import fs from 'fs';
+import path from 'path';
+import { spawn } from 'node:child_process';
 
 const { Given, When, Then, After } = createBdd();
 
@@ -145,36 +147,79 @@ Then('a service worker registration exists after load', async () => {
 
 After(async () => {
   if (sw) { await sw.context.close(); sw = null; }
-  if (stashedSw) {
-    fs.writeFileSync('web-dist/sw.js', stashedSw);
-    stashedSw = null;
+  if (privateSrv) {
+    privateSrv.child.kill();
+    fs.rmSync(privateSrv.root, { recursive: true, force: true });
+    privateSrv = null;
   }
 });
 
-// ---------- update toast (PS-17) ----------
+Given('the app runs on a private origin with a service worker precaching the shell', async ({ browser }) => {
+  await openPrivateOrigin(browser);
+});
 
-// Simulates a deploy: the built service worker gets a genuinely different
-// VERSION constant on disk, the running worker checks for updates, and the
-// browser installs the new bytes next to the active one. The bytes stay
-// deployed until the After hook restores them, so update checks triggered by
-// the reload see the same (new) build and the swap stays clean. Playwright
-// route interception does not see SW update-check fetches, so the bytes
-// change on disk instead; the local server reads them per request.
-let stashedSw = null;
+// ---------- update toast (PS-17) ----------
+// The three update scenarios run on a PRIVATE origin: their own server, on a
+// random port, serving a COPY of web-dist. The suite's workers share the main
+// origin (5179) and its one registration, so a deploy here would race every
+// concurrently running test's update checks - the recorded CI stick (three
+// occurrences). A private origin isolates the registration, the bytes and the
+// caches; the server and its temp copy die with the scenario.
+
+let privateSrv = null; // { child, port, root }
+
+async function openPrivateOrigin(browser) {
+  if (privateSrv) { privateSrv.child.kill(); privateSrv = null; }
+  const port = 5200 + Math.floor(Math.random() * 700);
+  const root = `.tmp/sw-isolate-${port}`;
+  fs.cpSync('web-dist', root, { recursive: true });
+  const child = spawn(process.execPath, ['-e', `
+    const http = require('http'), fs = require('fs'), path = require('path');
+    const root = ${JSON.stringify(process.cwd() + '/' + root)};
+    const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+    http.createServer((req, res) => {
+      const rel = req.url.split('?')[0];
+      const file = path.join(root, rel === '/' ? 'index.html' : rel);
+      if (!file.startsWith(root)) { res.writeHead(403); return res.end(); }
+      fs.readFile(file, (err, data) => {
+        if (err) { res.writeHead(404); return res.end('not found'); }
+        res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+        res.end(data);
+      });
+    }).listen(${port}, '127.0.0.1');
+  `], { stdio: 'ignore' });
+  privateSrv = { child, port, root };
+  // The spawned server needs a moment to listen: poll until it answers.
+  let up = false;
+  for (let i = 0; i < 40 && !up; i++) {
+    up = await fetch(`http://127.0.0.1:${port}/sw.js`).then((r) => r.ok).catch(() => false);
+    if (!up) await new Promise((r) => setTimeout(r, 250));
+  }
+  if (!up) throw new Error(`private server never came up on port ${port}`);
+  if (sw) { await sw.context.close(); sw = null; }
+  const context = await browser.newContext({ serviceWorkers: 'allow' });
+  const page = await context.newPage();
+  sw = { context, page };
+  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
+  await page.waitForFunction(() => !!(window.api && window.__darkroom));
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.waitForTimeout(400); // let install finish before the scenario acts
+}
 
 async function swDeployV2() {
-  if (!stashedSw) stashedSw = fs.readFileSync('web-dist/sw.js', 'utf8');
   // The built sw is minified (ADR 0005), so the version swap keys on the
   // version STRING itself, not on a source-shaped declaration. The running
   // worker reports its version through STATS; that exact string is unique in
   // the file, so replacing every occurrence deploys genuinely new bytes.
+  const swPath = path.join(privateSrv.root, 'sw.js');
+  const bytes = fs.readFileSync(swPath, 'utf8');
   const current = await swPageStats(sw.page);
   if (current.version === 'timeout') throw new Error('running sw did not report its version; cannot deploy v2');
-  fs.writeFileSync('web-dist/sw.js', stashedSw.split(JSON.stringify(current.version)).join(JSON.stringify('update-test-v2')));
+  fs.writeFileSync(swPath, bytes.split(JSON.stringify(current.version)).join(JSON.stringify('update-test-v2')));
 }
 
 When('a new service worker version is waiting', async () => {
-  swDeployV2();
+  await swDeployV2();
   await sw.page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
   await sw.page.waitForFunction(() => navigator.serviceWorker.getRegistration().then((r) => !!r && !!r.waiting), { timeout: 10000 });
   await sw.page.reload();
