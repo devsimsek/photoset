@@ -240,7 +240,7 @@ const Engine = (() => {
   const HALATION_TINT = [255, 74, 16]; // the red-orange the tint leans toward
   function halation(ctx, w, h, amt, highlight) {
     const a = amt / 100;
-    const thr = 0.92 - a * 0.3; // stronger keys reach dimmer brights
+    const thr = 0.97 - a * 0.22; // stronger keys reach dimmer brights; speculars bloom first
     const down = Math.max(1, Math.round(Math.max(w, h) / 480));
     const mw = Math.max(1, Math.round(w / down)), mh = Math.max(1, Math.round(h / down));
     const m = mk(mw, mh), mx = m.getContext('2d', { willReadFrequently: true });

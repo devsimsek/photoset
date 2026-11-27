@@ -40,10 +40,20 @@ RAW files develop through the same pipeline as JPGs, on your device:
 
 ## Film stocks
 
-Nine presets sit on the left. Each one sets all thirteen sliders at once:
+Seventeen presets sit on the left. Each one sets the sliders at once:
 
 Clean Scan · Drugstore Disposable · Super 8 Home Movie · Instant Mini · Cine Reel 35 ·
-Golden Summer · Expired '89 · Party Flash · Tri-Mono B&W
+Golden Summer · Expired '89 · Party Flash · Tri-Mono B&W · Chrome 100 · Portrait Silk ·
+Velvet Chrome 50 · Archive Chrome · Seventies Neg · Amber Neg · Cine Flat 400 · Micro Mono 100
+
+The last eight form the house pack, tuned in the spirit of classic film
+simulations: Chrome 100 is the faithful standard slide, Portrait Silk the soft
+portrait, Velvet Chrome 50 the vivid landscape film, Archive Chrome the muted
+documentary look, Seventies Neg the seventies negative with its blue-leaning
+shadows, Amber Neg the warm nostalgic negative, Cine Flat 400 the flat cinema
+stock, and Micro Mono 100 the fine-grain mono whose response leans the way a
+red filter does. Cine Flat 400 carries halation, so its highlights bloom
+red-orange; films saved from it keep the `halation` key.
 
 Touch any slider and the stock reads as *custom*. Double-click a slider label to reset
 that control to the stock's value.

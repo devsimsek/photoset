@@ -38,6 +38,24 @@
       look: { exposure: 18, contrast: 30, saturation: 10, warmth: -6, tint: -4, fade: 4, split: 30, shadow: '#1d3d6a', highlight: '#fff2d8', grain: 45, grainSize: 1.4, vignette: 60, softness: 8, date: true } },
     { id: 'mono', name: 'Tri-Mono\nB&W', iso: '400', c1: '#1b1b1b', c2: '#efe4cc', ink: '#efe4cc',
       look: { saturation: -100, contrast: 28, fade: 6, grain: 55, grainSize: 1.8, vignette: 35, softness: 5, aspect: '3:2', frame: '35mm' } },
+    // The house pack (PS-53): classic simulation spirits under house names,
+    // tuned on the film-shaped engine. Cine Flat carries the halation key.
+    { id: 'chrome', name: 'Chrome\n100', iso: '100', c1: '#2e6f9e', c2: '#f4f0e6', ink: '#f4efe3',
+      look: { contrast: 26, saturation: 0, warmth: -2, grain: 10, grainSize: 1.2, softness: 3 } },
+    { id: 'silk', name: 'Portrait\nSilk', iso: '100', c1: '#e0a48c', c2: '#f4e3d0',
+      look: { contrast: -14, saturation: -10, warmth: 4, fade: 12, grain: 8, grainSize: 1.4, vignette: 12, softness: 12 } },
+    { id: 'velvet', name: 'Velvet\nChrome 50', iso: '50', c1: '#1e6f4a', c2: '#c2381b', ink: '#f4efe3',
+      look: { contrast: 24, saturation: 55, warmth: 4, split: 12, shadow: '#1a4a5a', highlight: '#ffe8b0', grain: 8, grainSize: 1.3, vignette: 18, softness: 4 } },
+    { id: 'archive', name: 'Archive\nChrome', iso: '400', c1: '#6a5a44', c2: '#2a2620', ink: '#f4efe3',
+      look: { contrast: 18, saturation: -30, fade: 18, warmth: 2, split: 25, shadow: '#4a3828', highlight: '#e8e0d0', grain: 20, grainSize: 1.6, vignette: 15, softness: 5 } },
+    { id: 'seventies', name: 'Seventies\nNeg', iso: '400', c1: '#3a6a8a', c2: '#c8a05a',
+      look: { contrast: 14, saturation: -12, warmth: -14, tint: -6, fade: 20, split: 45, shadow: '#1e4a72', highlight: '#ffd9a0', grain: 25, grainSize: 1.7, vignette: 18, softness: 6 } },
+    { id: 'amber', name: 'Amber\nNeg', iso: '250', c1: '#c87a2a', c2: '#7a4a1e',
+      look: { contrast: 8, saturation: -6, warmth: 28, tint: 4, fade: 24, split: 45, shadow: '#5a3a1a', highlight: '#ffcf8a', grain: 22, grainSize: 1.6, vignette: 16, softness: 6 } },
+    { id: 'cineflat', name: 'Cine Flat\n400', iso: '400', c1: '#2a3a4a', c2: '#c0b090', ink: '#f4efe3',
+      look: { contrast: -6, saturation: -25, fade: 16, split: 20, shadow: '#2a3a4a', highlight: '#e8d8c0', grain: 14, grainSize: 1.5, softness: 8, halation: 45 } },
+    { id: 'micro', name: 'Micro Mono\n100', iso: '100', c1: '#1b1b1b', c2: '#d8d8d8', ink: '#f4efe3',
+      look: { saturation: -100, contrast: 30, warmth: 14, fade: 4, grain: 12, grainSize: 1.2, vignette: 15, softness: 4 } },
   ];
 
   const SLIDERS = [

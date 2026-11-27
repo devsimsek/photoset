@@ -15,18 +15,26 @@ export function quoted(text) {
 // shot, garbage swaps the bytes for undecodable noise that still carries a
 // .jpg name, asym makes a 160x80 shot with red on the left and blue on the
 // right, tone makes a 120x80 shot filled with the given colour, and disk makes
+// right, tone makes a 120x80 shot filled with the given colour, disk makes
 // a 160x120 near-black shot with a white disk centred at 40% of the width, for
-// the halation probes to sample around.
+// the halation probes to sample around, and palette makes a 200x80 shot with
+// four vertical bands (dark gray, mid red, light warm white, deep blue) for
+// the stock-signature probes to read.
 export async function loadRoll(page, specs, rollName) {
   await openApp(page);
   return page.evaluate(async ({ specs, rollName }) => {
-    const makeJpeg = async (busy, garbage, asym, tone, disk) => {
+    const makeJpeg = async (busy, garbage, asym, tone, disk, palette) => {
       if (garbage) return crypto.getRandomValues(new Uint8Array(200));
       const c = document.createElement('canvas');
-      c.width = busy ? 256 : asym ? 160 : tone ? 120 : disk ? 160 : 64;
-      c.height = busy ? 192 : asym ? 80 : tone ? 80 : disk ? 120 : 48;
+      c.width = busy ? 256 : asym ? 160 : tone ? 120 : disk ? 160 : palette ? 200 : 64;
+      c.height = busy ? 192 : asym ? 80 : tone ? 80 : disk ? 120 : palette ? 80 : 48;
       const x = c.getContext('2d');
-      if (disk) {
+      if (palette) {
+        for (const [col, x0] of [['#262626', 0], ['#c03020', 50], ['#e8d8b0', 100], ['#24366e', 150]]) {
+          x.fillStyle = col;
+          x.fillRect(x0, 0, 50, c.height);
+        }
+      } else if (disk) {
         x.fillStyle = '#0d0d0d';
         x.fillRect(0, 0, c.width, c.height);
         x.fillStyle = '#ffffff';
@@ -61,7 +69,7 @@ export async function loadRoll(page, specs, rollName) {
     };
     const files = [];
     for (const s of specs) {
-      const f = new File([await makeJpeg(!!s.busy, !!s.garbage, !!s.asym, s.tone, !!s.disk)], s.name, { type: 'image/jpeg' });
+      const f = new File([await makeJpeg(!!s.busy, !!s.garbage, !!s.asym, s.tone, !!s.disk, !!s.palette)], s.name, { type: 'image/jpeg' });
       if (s.rel) Object.defineProperty(f, 'webkitRelativePath', { value: s.rel });
       files.push(f);
     }
