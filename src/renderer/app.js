@@ -322,6 +322,11 @@
     toast(`Film “${singleLine(gone.name)}” deleted`);
   }
 
+  // The active film's LUT rides into the render settings next to the look:
+  // it lives on the film, never on state.s, so the settings persistence stays
+  // small. Every render path builds its settings through this.
+  const devSettings = () => ({ ...state.s, lut: activeLut() });
+
   // ---------- helpers ----------
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
   const yieldUI = () => new Promise((r) => setTimeout(r, 0));
@@ -937,7 +942,7 @@
     const p = state.photos[state.sel];
     previewName = p ? p.name : 'the shot';
     if (!p || p.remembered || p.missing) return;
-    const s = state.s;
+    const s = devSettings();
     let out;
     const inStrip = s.mode !== 'strip' || groupOf(p, s.stripN) >= 0;
     if (state.cropMode) {
@@ -1113,7 +1118,7 @@
   }
   async function runEstimate() {
     if (state.busy) return;
-    const seq = ++estSeq, s = { ...state.s };
+    const seq = ++estSeq, s = devSettings();
     try {
       let canvas, before;
       if (s.mode === 'strip') {
@@ -1154,7 +1159,7 @@
   async function develop(onlyCurrent) {
     if (state.busy || !state.photos.length) return;
     if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
-    const s = { ...state.s }, folder = safeFolder(s.folder);
+    const s = devSettings(), folder = safeFolder(s.folder);
     const strip = s.mode === 'strip';
     const half = isHalf(s);
     const cur = state.photos[state.sel];
@@ -1255,7 +1260,7 @@
   async function printContactSheet() {
     if (state.busy || !state.photos.length) return;
     if (state.photos.some((p) => p.remembered)) { toast('This roll is remembered by name only. Re-pick the folder to restore it.'); return; }
-    const s = { ...state.s };
+    const s = devSettings();
     const half = isHalf(s);
     const groups = half ? halfGroups() : stripGroups(s.stripN);
     if (!groups.length) { toast('Nothing to print: the whole roll is missing from the folder.'); return; }

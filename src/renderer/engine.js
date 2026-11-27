@@ -92,7 +92,39 @@ const Engine = (() => {
         const t = l / 255, ws = (1 - t) * (1 - t), wh = t * t;
         r += so[0] * ws + ho[0] * wh; g += so[1] * ws + ho[1] * wh; b += so[2] * ws + ho[2] * wh;
       }
-      d[i] = r; d[i + 1] = g; d[i + 2] = b;
+    d[i] = r; d[i + 1] = g; d[i + 2] = b;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // ---------- LUT pass (ADR 0006) ----------
+  // Trilinear over an 8-bit table, red fastest: the byte index of the corner
+  // at lattice (b, g, r) is ((b*N + g)*N + r) * 3. Inputs arrive as 0..255
+  // bytes, already inside [0,1]; outputs clamp and round through the 8-bit
+  // write. Pure math over the stored table: the same shot and film develop
+  // byte for byte, and an identity lattice returns its input exactly.
+  function lutBytes(b64) {
+    const bin = atob(b64), out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function lutPass(ctx, w, h, lut) {
+    const N = lut.size, N1 = N - 1, t = lutBytes(lut.table);
+    const img = ctx.getImageData(0, 0, w, h), d = img.data;
+    const dg = N * 3, db = N * N * 3; // corner strides: red, green, blue
+    for (let i = 0; i < d.length; i += 4) {
+      const x = d[i] * N1 / 255, y = d[i + 1] * N1 / 255, z = d[i + 2] * N1 / 255;
+      const r0 = Math.floor(x), g0 = Math.floor(y), b0 = Math.floor(z);
+      const rx = x - r0, gx = y - g0, bz = z - b0;
+      const r1 = r0 < N1 ? r0 + 1 : N1, g1 = g0 < N1 ? g0 + 1 : N1, b1 = b0 < N1 ? b0 + 1 : N1;
+      const o = ((b0 * N + g0) * N + r0) * 3;
+      const dr = (r1 - r0) * 3, dgy = (g1 - g0) * dg, dbz = (b1 - b0) * db;
+      const L = (a, f, c) => a + (c - a) * f; // red, then green, then blue
+      for (let ch = 0; ch < 3; ch++) {
+        const top = L(L(t[o + ch], rx, t[o + dr + ch]), gx, L(t[o + dgy + ch], rx, t[o + dgy + dr + ch]));
+        const bottom = L(L(t[o + dbz + ch], rx, t[o + dbz + dr + ch]), gx, L(t[o + dbz + dgy + ch], rx, t[o + dbz + dgy + dr + ch]));
+        d[i + ch] = L(top, bz, bottom);
+      }
     }
     ctx.putImageData(img, 0, 0);
   }
@@ -236,6 +268,7 @@ const Engine = (() => {
       ctx.drawImage(src, cr.x, cr.y, cr.w, cr.h, 0, 0, w, h);
     }
     if (needsGrade(s)) grade(ctx, w, h, s, rng);
+    if (s.lut) lutPass(ctx, w, h, s.lut); // after the grade, before the leak (ADR 0006)
     if (s.leak > 0) lightLeak(ctx, w, h, s.leak, rng);
     if (s.vignette > 0) vignette(ctx, w, h, s.vignette);
     if (s.date && meta.date) dateStamp(ctx, w, h, meta.date, s.dateFmt);

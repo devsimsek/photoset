@@ -4,10 +4,91 @@
 import { createBdd } from 'playwright-bdd';
 import { expect } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { loadRoll, quoted } from './helpers.js';
+import { loadRoll, quoted, probeResult } from './helpers.js';
 import { results } from './results.js';
 
 const { Given, When, Then } = createBdd();
+
+// ---------- engine-pass fixtures ----------
+
+// A shot the develop pipeline sees as one flat colour.
+Given(/^the photographer loaded a shot filled "(.+?)"$/, async ({ page }, tone) => {
+  await loadRoll(page, [{ name: 'tone.jpg', tone }], '');
+});
+
+Given('the photographer outputs PNG files', async ({ page }) => {
+  await page.selectOption('select[data-k="format"]', 'image/png');
+});
+
+Given(/^the photographer imported the LUT film "(.+?)" that adds ([\d.]+) to blue as a file$/, async ({ page }, name, lift) => {
+  const add = Number(lift);
+  const table = tintTableB64(17, (r, g, b) => [r, g, Math.min(1, b + add)]);
+  await importFilmJson(page, lutFilm(name, 17, table));
+});
+
+Given(/^the photographer imported a film with exposure (-?\d+) and contrast (-?\d+) plus a (\d+)-point identity LUT as a file$/,
+  async ({ page }, exposure, contrast, size) => {
+    const look = { ...neutralLook(), exposure: Number(exposure), contrast: Number(contrast) };
+    const film = { schema: 2, id: 'graded-lut', name: 'Graded LUT', iso: '64', look, lut: { name: 'Graded LUT', size: Number(size), table: identityTableB64(Number(size)) } };
+    await importFilmJson(page, film);
+  });
+
+When('the photographer pastes the same look without the LUT', async ({ page }) => {
+  const look = await page.evaluate(() => {
+    const films = JSON.parse(localStorage.getItem('darkroom.films') || '[]');
+    const f = films.find((x) => x.id === 'graded-lut');
+    return { exposure: f.look.exposure, contrast: f.look.contrast };
+  });
+  const film = { schema: 1, id: 'graded-only', name: 'Graded Only', iso: '64', look: { ...neutralLook(), ...look } };
+  await page.click('#importFilmBtn');
+  await page.fill('#filmJson', JSON.stringify(film));
+  await page.click('#filmOk');
+});
+
+// Averaged centre probe of the developed output, decoded losslessly when the
+// scenario outputs PNG.
+Then(/^the developed blue channel reads about (\d+)$/, async ({ page }, want) => {
+  const probe = await probeResult(page, [[0.5, 0.5]]);
+  const [r, g, b] = probe.spots[0];
+  expect(b, `blue channel ${Math.round(b)} vs about ${want}`).toBeGreaterThanOrEqual(Number(want) - 12);
+  expect(b, `blue channel ${Math.round(b)} vs about ${want}`).toBeLessThanOrEqual(Number(want) + 12);
+});
+
+Then(/^the developed red channel stays near the source$/, async ({ page }) => {
+  const probe = await probeResult(page, [[0.5, 0.5]]);
+  expect(probe.spots[0][0], 'red channel crept up').toBeLessThan(20);
+});
+
+When('the photographer times a 12-megapixel develop with the identity LUT', async ({ page }) => {
+  results.film.ms = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 4000; c.height = 3000; // 12 megapixels
+    const x = c.getContext('2d');
+    x.fillStyle = '#b34d2e';
+    x.fillRect(0, 0, c.width, c.height);
+    const bytes = new Uint8Array(17 * 17 * 17 * 3);
+    let k = 0;
+    for (let b = 0; b < 17; b++) for (let g = 0; g < 17; g++) for (let r = 0; r < 17; r++) {
+      bytes[k++] = Math.round((r * 255) / 16); bytes[k++] = Math.round((g * 255) / 16); bytes[k++] = Math.round((b * 255) / 16);
+    }
+    const bin = [];
+    for (let i = 0; i < bytes.length; i += 0x8000) bin.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)));
+    const look = {
+      exposure: 0, contrast: 0, saturation: 0, warmth: 0, tint: 0, fade: 0, split: 0,
+      shadow: '#2f6a72', highlight: '#ffb46a', grain: 0, grainSize: 1.5, vignette: 0,
+      softness: 0, leak: 0, flicker: 0, aspect: 'orig', frame: 'none', date: false,
+      dateFmt: 'ymd', rotate: 0,
+      lut: { name: 'Identity', size: 17, table: btoa(bin.join('')) },
+    };
+    const t0 = performance.now();
+    Engine.renderLook(c, { name: 'big.jpg' }, look, 0);
+    return performance.now() - t0;
+  });
+});
+
+Then('the develop completes inside the 10 second budget', async () => {
+  expect(results.film.ms, `${Math.round(results.film.ms)} ms for a 12 MP develop`).toBeLessThan(10000);
+});
 
 // ---------- fixtures built in the step, not committed ----------
 
@@ -42,6 +123,22 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$
 
 export function lutFilm(name, size, table) {
   return { schema: 2, id: slug(name), name, iso: 'LUT', look: neutralLook(), lut: { name, size, table } };
+}
+
+// Base64 of a size^3 table built by per(lattice r, g, b in 0..1), 8-bit,
+// clamp-then-quantise, red fastest.
+export function tintTableB64(size, per) {
+  const bytes = new Uint8Array(size * size * size * 3);
+  let k = 0;
+  for (let b = 0; b < size; b++) {
+    for (let g = 0; g < size; g++) {
+      for (let r = 0; r < size; r++) {
+        const out = per(r / (size - 1), g / (size - 1), b / (size - 1));
+        for (let c = 0; c < 3; c++) bytes[k++] = Math.max(0, Math.min(255, Math.round(out[c] * 255)));
+      }
+    }
+  }
+  return Buffer.from(bytes).toString('base64');
 }
 
 // ---------- import helpers ----------
