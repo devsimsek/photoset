@@ -144,3 +144,9 @@ PS-32 keeps the device triage. Source: ~/.opencode/plan/photoset-post-1.0-waves.
 | PS-53 | The Fuji-simulation pack, house-named | Done | `app.js`, features/ | Commits `2ff0bb2` + `5018573` (fix forward: the Chrome 100 faithful-slide pin read runner-unsafe). House names: Chrome 100, Portrait Silk, Velvet Chrome 50, Archive Chrome, Seventies Neg, Amber Neg, Cine Flat 400 (halation 45), Micro Mono 100. Signatures pinned per stock on PNG compares vs Clean Scan. |
 | PS-54 | Every stock previews itself on the current shot | Done | `app.js`, `index.html`, `styles.css`, features/ | Commit `0f28913`. Red proof: no preview canvases existed. 96x72 renderLook thumbnails cached per (shot, stock), built over requestIdleCallback, cleared on roll/crop/library changes; preview equals a thumbnail-scale develop within 2/255 mean. |
 | PS-55 | The stage bar stays inline; controls speak one language | Done | `index.html`, `styles.css`, `app.js`, features/ | Commit `dad29e3`. Red proofs: the owner-reported squeeze (frame info crushed to 0px in crop mode at 375), missing first-run hint, QR escaping the dialog (415.8 > 359). .stage-nav never wraps (120px frame-info floor), .stage-modes wraps controlled; first-run hint retired by any roll load; film dialog rows pinned. Confession in the report: the agent's first hint logic was inverted and its own scenario caught it. |
+
+## v1.4.1 hotfix: the button audit (2026-11-27)
+
+| ID | Title | Status | Scope | Evidence |
+| --- | --- | --- | --- | --- |
+| PS-56 | The action controls sit out with a reason | Done | `app.js`, features/ | Commit `a89f953`. Owner report: PRINT PDF did nothing. Full button audit: DEVELOP, SAVE THIS, PRINT PDF, HOLD ORIGINAL and CROP were silent no-ops with no roll (the PS-50 disease, systemic). They disable with a 'Load a roll first' tooltip until pixels exist, respect busy state, keep their remembered/missing toasts; compareBtn verified wired (hold). 180/180 final. |
